@@ -1,0 +1,22 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: port-buddy-server
+  datasource:
+    url: jdbc:postgresql://localhost:5432/port_buddy
+    username: port_buddy
+    password: port_buddy
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

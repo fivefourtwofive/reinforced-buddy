@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root { height: 100%; }
+body { margin: 0; font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; background: #0b1020; color: #e2e8f0; }
+
+a { color: #22d3ee; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.container { @apply max-w-6xl mx-auto px-4; }
+.btn { @apply inline-flex items-center gap-2 bg-accent/20 border border-accent/40 px-4 py-2 rounded hover:bg-accent/30 transition; }
+.badge { @apply text-xs border border-accent/40 rounded px-2 py-0.5; }
