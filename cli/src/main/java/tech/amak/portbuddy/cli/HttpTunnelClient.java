@@ -1,5 +1,6 @@
 package tech.amak.portbuddy.cli;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
@@ -7,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,7 @@ import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
 import okio.ByteString;
 import tech.amak.portbuddy.common.tunnel.HttpTunnelMessage;
+import tech.amak.portbuddy.common.tunnel.WsTunnelMessage;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -37,6 +40,8 @@ public class HttpTunnelClient {
 
   private WebSocket ws;
   private final CountDownLatch closeLatch = new CountDownLatch(1);
+
+  private final Map<String, WebSocket> localWsByConn = new ConcurrentHashMap<>();
 
   public void runBlocking() {
     final var wsUrl = toWebSocketUrl(serverUrl, "/api/tunnel/" + tunnelId);
@@ -71,7 +76,13 @@ public class HttpTunnelClient {
     @Override
     public void onMessage(WebSocket webSocket, String text) {
       try {
-        final var msg = mapper.readValue(text, HttpTunnelMessage.class);
+        final JsonNode node = mapper.readTree(text);
+        if (node.has("kind") && "WS".equals(node.get("kind").asText())) {
+          final var wsMsg = mapper.treeToValue(node, WsTunnelMessage.class);
+          handleWsFromServer(wsMsg);
+          return;
+        }
+        final var msg = mapper.treeToValue(node, HttpTunnelMessage.class);
         if (msg.getType() == HttpTunnelMessage.Type.REQUEST) {
           final var resp = handleRequest(msg);
           final var json = mapper.writeValueAsString(resp);
@@ -94,6 +105,105 @@ public class HttpTunnelClient {
     public void onFailure(WebSocket webSocket, Throwable t, Response response) {
       log.warn("Tunnel failure: {}", t.toString());
       closeLatch.countDown();
+    }
+  }
+
+  private void handleWsFromServer(WsTunnelMessage m) {
+    final var connId = m.getConnectionId();
+    switch (m.getWsType()) {
+      case OPEN -> {
+        // Connect to local target via WS
+        var url = "ws://" + localHost + ":" + localPort + (m.getPath() != null ? m.getPath() : "/");
+        if (m.getQuery() != null && !m.getQuery().isBlank()) {
+          url += "?" + m.getQuery();
+        }
+        final var rb = new Request.Builder().url(url);
+        if (m.getHeaders() != null) {
+          for (var e : m.getHeaders().entrySet()) {
+            if (e.getKey() != null && e.getValue() != null) {
+              rb.addHeader(e.getKey(), e.getValue());
+            }
+          }
+        }
+        final var local = http.newWebSocket(rb.build(), new LocalWsListener(connId));
+        localWsByConn.put(connId, local);
+      }
+      case TEXT -> {
+        final var local = localWsByConn.get(connId);
+        if (local != null) local.send(m.getText() != null ? m.getText() : "");
+      }
+      case BINARY -> {
+        final var local = localWsByConn.get(connId);
+        if (local != null && m.getDataB64() != null) {
+          local.send(ByteString.of(Base64.getDecoder().decode(m.getDataB64())));
+        }
+      }
+      case CLOSE -> {
+        final var local = localWsByConn.remove(connId);
+        if (local != null) local.close(m.getCloseCode() != null ? m.getCloseCode() : 1000, m.getCloseReason());
+      }
+      default -> {}
+    }
+  }
+
+  private class LocalWsListener extends WebSocketListener {
+    private final String connectionId;
+    LocalWsListener(String connectionId) { this.connectionId = connectionId; }
+
+    @Override
+    public void onOpen(WebSocket webSocket, Response response) {
+      try {
+        final var ack = new WsTunnelMessage();
+        ack.setWsType(WsTunnelMessage.Type.OPEN_OK);
+        ack.setConnectionId(connectionId);
+        ws.send(mapper.writeValueAsString(ack));
+      } catch (Exception ignore) {}
+    }
+
+    @Override
+    public void onMessage(WebSocket webSocket, String text) {
+      try {
+        final var m = new WsTunnelMessage();
+        m.setWsType(WsTunnelMessage.Type.TEXT);
+        m.setConnectionId(connectionId);
+        m.setText(text);
+        ws.send(mapper.writeValueAsString(m));
+      } catch (Exception e) {
+        log.debug("Failed to forward local text WS: {}", e.toString());
+      }
+    }
+
+    @Override
+    public void onMessage(WebSocket webSocket, ByteString bytes) {
+      try {
+        final var m = new WsTunnelMessage();
+        m.setWsType(WsTunnelMessage.Type.BINARY);
+        m.setConnectionId(connectionId);
+        m.setDataB64(Base64.getEncoder().encodeToString(bytes.toByteArray()));
+        ws.send(mapper.writeValueAsString(m));
+      } catch (Exception e) {
+        log.debug("Failed to forward local binary WS: {}", e.toString());
+      }
+    }
+
+    @Override
+    public void onClosed(WebSocket webSocket, int code, String reason) {
+      try {
+        localWsByConn.remove(connectionId);
+        final var m = new WsTunnelMessage();
+        m.setWsType(WsTunnelMessage.Type.CLOSE);
+        m.setConnectionId(connectionId);
+        m.setCloseCode(code);
+        m.setCloseReason(reason);
+        ws.send(mapper.writeValueAsString(m));
+      } catch (Exception e) {
+        log.debug("Failed to notify close: {}", e.toString());
+      }
+    }
+
+    @Override
+    public void onFailure(WebSocket webSocket, Throwable t, Response response) {
+      onClosed(webSocket, 1011, t.toString());
     }
   }
 

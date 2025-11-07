@@ -2,7 +2,6 @@ package tech.amak.portbuddy.server.tunnel;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
@@ -10,13 +9,17 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import tech.amak.portbuddy.common.tunnel.HttpTunnelMessage;
+import tech.amak.portbuddy.common.tunnel.WsTunnelMessage;
 
-/** Registry of active HTTP tunnels. */
+/** Registry of active HTTP tunnels and WS connections. */
 @Slf4j
 @Component
 public class TunnelRegistry {
@@ -93,11 +96,65 @@ public class TunnelRegistry {
     }
   }
 
+  // ============ WebSocket tunneling support ============
+  public void sendWsToClient(String tunnelId, WsTunnelMessage m) {
+    final var t = byTunnelId.get(tunnelId);
+    if (t == null || !t.isOpen()) return;
+    try {
+      final var json = mapper.writeValueAsString(m);
+      t.session().sendMessage(new TextMessage(json));
+    } catch (IOException e) {
+      log.warn("Failed to send WS message to client: {}", e.toString());
+    }
+  }
+
+  public void registerBrowserWs(String tunnelId, String connectionId, WebSocketSession browserSession) {
+    final var t = byTunnelId.get(tunnelId);
+    if (t == null) return;
+    t.browserByConn().put(connectionId, browserSession);
+    t.browserReverse().put(browserSession, new Ids(tunnelId, connectionId));
+  }
+
+  public Ids unregisterBrowserWs(WebSocketSession browserSession) {
+    for (var t : byTunnelId.values()) {
+      final var ids = t.browserReverse().remove(browserSession);
+      if (ids != null) {
+        t.browserByConn().remove(ids.connectionId);
+        return ids;
+      }
+    }
+    return null;
+  }
+
+  public Ids findIdsByBrowserSession(WebSocketSession browserSession) {
+    for (var t : byTunnelId.values()) {
+      final var ids = t.browserReverse().get(browserSession);
+      if (ids != null) return ids;
+    }
+    return null;
+  }
+
+  public WebSocketSession getBrowserSession(String tunnelId, String connectionId) {
+    final var t = byTunnelId.get(tunnelId);
+    if (t == null) return null;
+    return t.browserByConn().get(connectionId);
+  }
+
+  @Data
+  @AllArgsConstructor
+  public static class Ids {
+    private String tunnelId;
+    private String connectionId;
+  }
+
   public static class Tunnel {
     private final String subdomain;
     private final String tunnelId;
     private volatile WebSocketSession session;
     private final Map<String, CompletableFuture<HttpTunnelMessage>> pending = new ConcurrentHashMap<>();
+    // Browser WS peers for this tunnel
+    private final Map<String, WebSocketSession> browserByConn = new ConcurrentHashMap<>();
+    private final Map<WebSocketSession, Ids> browserReverse = new ConcurrentHashMap<>();
 
     public Tunnel(String subdomain, String tunnelId) {
       this.subdomain = subdomain;
@@ -110,5 +167,8 @@ public class TunnelRegistry {
     public void setSession(WebSocketSession s) { this.session = s; }
     public Map<String, CompletableFuture<HttpTunnelMessage>> pending() { return pending; }
     public boolean isOpen() { return session != null && session.isOpen(); }
+
+    public Map<String, WebSocketSession> browserByConn() { return browserByConn; }
+    public Map<WebSocketSession, Ids> browserReverse() { return browserReverse; }
   }
 }

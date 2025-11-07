@@ -13,7 +13,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Intercepts requests with Host like "{sub}.port-buddy.com" and forwards them via tunnel.
- * Skips /api and /actuator endpoints.
+ * Skips /api and /actuator endpoints. Lets WebSocket Upgrade pass to WS handlers.
  */
 @Slf4j
 @Component
@@ -27,6 +27,13 @@ public class HostTunnelFilter extends OncePerRequestFilter {
       throws ServletException, IOException {
     final var uri = request.getRequestURI();
     if (uri.startsWith("/api") || uri.startsWith("/actuator") || uri.startsWith("/_/")) {
+      filterChain.doFilter(request, response);
+      return;
+    }
+
+    // Let WebSocket upgrade go through to WebSocket handlers
+    final var upgrade = request.getHeader("Upgrade");
+    if (upgrade != null && "websocket".equalsIgnoreCase(upgrade)) {
       filterChain.doFilter(request, response);
       return;
     }
