@@ -5,17 +5,14 @@ public enum Mode {
   HTTP,
   TCP;
 
-  public static Mode from(String s) {
-    if (s == null) {
+  public static Mode from(String mode) {
+    if (mode == null) {
       return HTTP;
     }
-    switch (s.toLowerCase()) {
-      case "http":
-        return HTTP;
-      case "tcp":
-        return TCP;
-      default:
-        throw new IllegalArgumentException("Unknown mode: " + s);
-    }
+      return switch (mode.toLowerCase()) {
+          case "http" -> HTTP;
+          case "tcp" -> TCP;
+          default -> throw new IllegalArgumentException("Unknown mode: " + mode);
+      };
   }
 }

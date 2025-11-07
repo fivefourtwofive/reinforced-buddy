@@ -53,12 +53,15 @@ Project is written as multi-modular maven project and consists of the following 
 * web application, which has landing page, user's app and admin app. 
 
 Written in Java 25. 
+
+### Java code style 
 Google checkstyle rules are used. 
 All variables which value is not changed must be marked with `final` modifier. 
 All method params must be marked with `final` modifier.
 For local variable `var` must be used instead of class name.
 Lombok library is used for getters/setters, log reference, ect.
-Do not shortout variable names.
+Do not shorten variable names. Always use meaningful names.
+Use 4 spaces for indentation.
 
 ### Server application
 Is written using Spring Boot 3.5.7 framework. 
