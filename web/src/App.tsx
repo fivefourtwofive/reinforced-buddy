@@ -1,5 +1,5 @@
-import { Link, Outlet, Route, Routes } from 'react-router-dom'
-import { useState } from 'react'
+import { Link, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import Landing from './pages/Landing'
 import Installation from './pages/Installation'
 import Dashboard from './pages/Dashboard'
@@ -8,6 +8,27 @@ import Profile from './pages/Profile'
 import Subscription from './pages/Subscription'
 import ProtectedRoute from './components/ProtectedRoute'
 import { useAuth } from './auth/AuthContext'
+
+function ScrollToHash() {
+  const location = useLocation()
+  useEffect(() => {
+    if (!location.hash) {
+      return
+    }
+    const id = location.hash.replace('#', '')
+    const scroll = () => {
+      const el = document.getElementById(id)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }
+    // Try immediately and once more on next tick to ensure target is mounted
+    scroll()
+    const t = setTimeout(scroll, 0)
+    return () => clearTimeout(t)
+  }, [location.hash])
+  return null
+}
 
 export default function App() {
   const { user, logout } = useAuth()
@@ -21,6 +42,8 @@ export default function App() {
             Port Buddy
           </Link>
           <nav className="flex items-center gap-6 text-sm">
+            <Link to="/install" className="hover:text-white" aria-label="Installation instructions">Installation</Link>
+            <Link to="/#pricing" className="hover:text-white" aria-label="View pricing">Pricing</Link>
             {!user ? (
               // Only Login button when not authenticated
               <Link to="/login" className="btn">Login</Link>
@@ -65,6 +88,7 @@ export default function App() {
           <Route path="/app/profile" element={<ProtectedRoute><Profile/></ProtectedRoute>} />
           <Route path="/app/subscription" element={<ProtectedRoute><Subscription/></ProtectedRoute>} />
         </Routes>
+        <ScrollToHash />
         <Outlet />
       </main>
 
@@ -72,9 +96,9 @@ export default function App() {
         <div className="container text-sm text-white/60 flex items-center justify-between">
           <span>© {new Date().getFullYear()} Port Buddy</span>
           <div className="flex gap-4">
-            <a href="#pricing">Pricing</a>
-            <a href="#use-cases">Use Cases</a>
-            <a href="#docs">Docs</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="/#use-cases">Use Cases</a>
+            <a href="/#docs">Docs</a>
           </div>
         </div>
       </footer>

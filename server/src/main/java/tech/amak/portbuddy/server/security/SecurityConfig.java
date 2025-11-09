@@ -10,6 +10,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -21,6 +22,8 @@ import lombok.RequiredArgsConstructor;
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
+
+    private final ApiTokenAuthFilter apiTokenAuthFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(final HttpSecurity http) throws Exception {
@@ -37,6 +40,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll()
             )
+            .addFilterBefore(apiTokenAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .oauth2Login(oauth -> oauth
                 .defaultSuccessUrl("http://localhost:5173/auth/callback", true)
@@ -53,7 +57,7 @@ public class SecurityConfig {
         final var cfg = new CorsConfiguration();
         cfg.setAllowedOrigins(List.of("http://localhost:5173"));
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        cfg.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-API-Token"));
         cfg.setAllowCredentials(true);
         final var source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cfg);

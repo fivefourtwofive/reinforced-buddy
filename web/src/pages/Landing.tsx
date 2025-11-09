@@ -15,7 +15,7 @@ export default function Landing() {
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
               <Link to="/install" className="btn">Install CLI</Link>
-              <a href="#pricing" className="btn" aria-label="View pricing plans">Pricing</a>
+              <Link to="/#pricing" className="btn" aria-label="View pricing plans">Pricing</Link>
               <Link to="/app" className="btn" aria-label="Open your dashboard">Open App</Link>
             </div>
             <p className="mt-2 text-xs text-white/50">No credit card required to start. Free local testing with rate limits.</p>
@@ -47,7 +47,7 @@ tcp 127.0.0.1:5432 exposed to: tcp-proxy-3.port-buddy.com:43452`}
       </section>
 
       {/* Features */}
-      <section id="features" className="container py-16">
+      <section id="features" className="container py-16 scroll-mt-24">
         <h2 className="text-2xl font-bold">Main Functionality</h2>
         <div className="grid md:grid-cols-3 gap-6 mt-6 text-white/80">
           <Feature title="HTTP & WebSocket tunneling" desc="Proxy HTTP(S) and WebSocket traffic to your local web app." />
@@ -60,18 +60,18 @@ tcp 127.0.0.1:5432 exposed to: tcp-proxy-3.port-buddy.com:43452`}
       </section>
 
       {/* How it works */}
-      <section id="how-it-works" className="container py-16">
+      <section id="how-it-works" className="container py-16 scroll-mt-24">
         <h2 className="text-2xl font-bold">How it works</h2>
         <ol className="grid md:grid-cols-3 gap-6 mt-6 text-white/80 list-decimal list-inside">
           <li className="bg-black/30 border border-white/10 rounded-xl p-6">Install the CLI and authenticate: <code className="bg-black/50 px-1 rounded">port-buddy init {'{API_TOKEN}'}</code>.</li>
           <li className="bg-black/30 border border-white/10 rounded-xl p-6">Run a tunnel: <code className="bg-black/50 px-1 rounded">port-buddy [http|tcp] [host:]port</code>.</li>
           <li className="bg-black/30 border border-white/10 rounded-xl p-6">Share the generated public URL or TCP endpoint with anyone.</li>
         </ol>
-        <p className="text-xs text-white/50 mt-3" id="docs">Full documentation coming soon.</p>
+        <p className="text-xs text-white/50 mt-3 scroll-mt-24" id="docs">Full documentation coming soon.</p>
       </section>
 
       {/* Use cases */}
-      <section id="use-cases" className="container py-16">
+      <section id="use-cases" className="container py-16 scroll-mt-24">
         <h2 className="text-2xl font-bold">Use Cases</h2>
         <ul className="grid md:grid-cols-2 gap-4 mt-6 list-disc list-inside text-white/80">
           <li>Share your in-progress web app with teammates or clients</li>
@@ -82,7 +82,7 @@ tcp 127.0.0.1:5432 exposed to: tcp-proxy-3.port-buddy.com:43452`}
       </section>
 
       {/* Security & limits */}
-      <section id="security" className="container py-16">
+      <section id="security" className="container py-16 scroll-mt-24">
         <h2 className="text-2xl font-bold">Security and limits</h2>
         <div className="grid md:grid-cols-3 gap-6 mt-6 text-white/80">
           <Feature title="OAuth2 sign-in" desc="Login with Google or GitHub; issue API tokens for CLI." />
@@ -92,7 +92,7 @@ tcp 127.0.0.1:5432 exposed to: tcp-proxy-3.port-buddy.com:43452`}
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="container py-16">
+      <section id="pricing" className="container py-16 scroll-mt-24">
         <h2 className="text-2xl font-bold">Pricing</h2>
         <div className="grid md:grid-cols-3 gap-6 mt-6">
           <PlanCard name="basic" price="$5" features={[

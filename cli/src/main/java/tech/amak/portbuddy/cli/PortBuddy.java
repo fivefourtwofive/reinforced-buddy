@@ -118,10 +118,14 @@ public class PortBuddy implements Callable<Integer> {
         try {
             final var url = baseUrl + "/api/expose/http";
             final var json = mapper.writeValueAsString(reqBody);
-            final var request = new Request.Builder()
+            final var cfg = loadConfig();
+            final var reqBuilder = new Request.Builder()
                 .url(url)
-                .post(RequestBody.create(json, MediaType.parse("application/json")))
-                .build();
+                .post(RequestBody.create(json, MediaType.parse("application/json")));
+            if (cfg.getApiToken() != null && !cfg.getApiToken().isBlank()) {
+                reqBuilder.header("Authorization", "Bearer " + cfg.getApiToken());
+            }
+            final var request = reqBuilder.build();
 
             try (final var response = http.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
@@ -145,10 +149,14 @@ public class PortBuddy implements Callable<Integer> {
         try {
             final var url = baseUrl + "/api/expose/tcp";
             final var json = mapper.writeValueAsString(reqBody);
-            final var request = new Request.Builder()
+            final var cfg = loadConfig();
+            final var reqBuilder = new Request.Builder()
                 .url(url)
-                .post(RequestBody.create(json, MediaType.parse("application/json")))
-                .build();
+                .post(RequestBody.create(json, MediaType.parse("application/json")));
+            if (cfg.getApiToken() != null && !cfg.getApiToken().isBlank()) {
+                reqBuilder.header("Authorization", "Bearer " + cfg.getApiToken());
+            }
+            final var request = reqBuilder.build();
 
             try (final var response = http.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
