@@ -1,7 +1,8 @@
 # Project Guidelines
 
 ## Project description:
-You are building a client-server application that exposes a port opened on the local host or in private network to the public network. It should be an analog of ngrok.com but much simpler. 
+This project is a tool that allows you to share a port opened on the local host or in private network to the public network.
+It is built as a client-server application that exposes a port opened on the local host or in private network to the public network. It is an analog of ngrok.com but much simpler. 
 
 To expose a port, user runs command-line application and specify host(optionally) and port number to expose. command template: `port-buddy [mode] [host:][port]`. Where:
 * `mode` is optional and could be one of the following: [http, tcp]. `http` is a default mode.
