@@ -1,9 +1,9 @@
 # Project Guidelines
 
 ## Project description:
-You are building a client-server application that exposes a port opened on the local host or in private network to the public network. It should be an analog of ngrok.com but much simpier. 
+You are building a client-server application that exposes a port opened on the local host or in private network to the public network. It should be an analog of ngrok.com but much simpler. 
 
-To expose a port, user run command-line application and specify host(optionally) and port number to expose. command template: `port-buddy [mode] [host:][port]`. Where:
+To expose a port, user runs command-line application and specify host(optionally) and port number to expose. command template: `port-buddy [mode] [host:][port]`. Where:
 * `mode` is optional and could be one of the following: [http, tcp]. `http` is a default mode.
 * `host` is optional and could be valid ip address or domain name. For instance [localhost, 127.0.0.1, myserveraddress.com]. `localhost` is a default host.
 * `port` is required. must be in range [1, 65535].
@@ -13,35 +13,34 @@ He gets back in the console a unique url to access the port in the public networ
 If someone opens this url (https://random-subdomain.port-buddy.com) in the browser, he will see the web-app which is running on the user's local machine.
 Technically, any http request or websocket connection to the url (https://random-subdomain.port-buddy.com) will be proxied through client application `port-buddy` to the user's web-app running at localhost:3000.
 
-TCP example: user wants to open connection to the database which is running in private network to public network and share it to someone. For instance, user has postgresql db running on localhost:5432.
+TCP example: user wants to open a connection to the database which is running in a private network to public network and share it to someone. For instance, user has postgresql db running on localhost:5432.
 User run command `port-buddy tcp 5432`. Console output: `tcp localhost:5432 exposed to: tcp-proxy-3.port-buddy.com:43452`, where port 43452 is dynamically assigned based on port availability. 
-Then someone could connect to user's database using database client by specifying host=random-subdomain.port-buddy.com and port=43452.
+Then someone could connect to a user's database using a database client by specifying host=random-subdomain.port-buddy.com and port=43452.
 
-User must be authenticated and have active subscription. User could log into the system using Google or GitHub account. For authentication OAuth2 protocol with JWT tokens is used,  
+User must be authenticated and have an active subscription. User could log into the system using Google or GitHub account. For authentication OAuth2 protocol with JWT tokens is used,  
 To authenticate CLI client, user should generate API token in his account and then run command `port-buddy init {API_TOKEN}`, where {API_TOKEN} - is a placeholder for generated API token.
 
-Resources provided to user are limited based on subscription plan. 
-There are 3 subscription plans:
-* basic
-* individual
-* professional
+Resources provided to user are limited based on a subscription plan. 
+There are two subscription plans:
+* Hobby
+* Developer
 
-`basic` plan allows:
-* http connections only
-* up to 3Gb traffic per day
-* cost: 5$
+`Hobby` plan includes:
+* HTTP traffic
+* 2 static subdomains
+* HTTP requests logging
+* Number of concurrent tunnels: 2
+* Tunnel lifetime: 1 hour
+* Cost: $0
 
-`individual` plan allows:
-* everything in basic plan
-* tcp connections
-* up to 6Gb traffic per day
-* cost: 10$
-
-`professional` plan allows:
-* everything in individual plan
-* tcp connections
-* up to 20Gb traffic per day
-* cost: 20$
+`Developer` plan includes:
+* Everything in the Hobby plan
+* TCP traffic 
+* Number of concurrent tunnels: 10
+* Tunnel lifetime: unlimited
+* 10 static subdomains
+* 1 custom domain
+* Cost: $10
 
 
 ## Technical details: 
