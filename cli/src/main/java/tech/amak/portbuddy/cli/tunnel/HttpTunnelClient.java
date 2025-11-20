@@ -1,5 +1,7 @@
 package tech.amak.portbuddy.cli.tunnel;
 
+import static tech.amak.portbuddy.cli.utils.JsonUtils.MAPPER;
+
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -14,9 +16,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.MediaType;
@@ -30,6 +29,7 @@ import okio.ByteString;
 import tech.amak.portbuddy.cli.ui.HttpLogSink;
 import tech.amak.portbuddy.common.tunnel.ControlMessage;
 import tech.amak.portbuddy.common.tunnel.HttpTunnelMessage;
+import tech.amak.portbuddy.common.tunnel.MessageEnvelope;
 import tech.amak.portbuddy.common.tunnel.WsTunnelMessage;
 
 @Slf4j
@@ -59,7 +59,6 @@ public class HttpTunnelClient {
         .followRedirects(true)
         .retryOnConnectionFailure(true)
         .build();
-    private final ObjectMapper mapper = new ObjectMapper();
 
     private WebSocket webSocket;
     private CountDownLatch closed = new CountDownLatch(1);
@@ -192,7 +191,7 @@ public class HttpTunnelClient {
                         final var ping = new ControlMessage();
                         ping.setType(ControlMessage.Type.PING);
                         ping.setTs(System.currentTimeMillis());
-                        HttpTunnelClient.this.webSocket.send(mapper.writeValueAsString(ping));
+                        HttpTunnelClient.this.webSocket.send(MAPPER.writeValueAsString(ping));
                     } catch (final Exception e) {
                         log.debug("Heartbeat send failed: {}", e.toString());
                     }
@@ -206,37 +205,30 @@ public class HttpTunnelClient {
         public void onMessage(final WebSocket webSocket, final String text) {
             try {
                 log.debug("Received WS message: {}", text);
-                final JsonNode node = mapper.readTree(text);
-                if (node.has("kind") && "CTRL".equals(node.get("kind").asText())) {
+                final var env = MAPPER.readValue(text, MessageEnvelope.class);
+                if (env.getKind() != null && env.getKind().equals("CTRL")) {
                     // Ignore control messages (e.g., PONG)
                     return;
                 }
-                if (node.has("kind") && "WS".equals(node.get("kind").asText())) {
-                    final var wsMsg = mapper.treeToValue(node, WsTunnelMessage.class);
+                if (env.getKind() != null && env.getKind().equals("WS")) {
+                    final var wsMsg = MAPPER.readValue(text, WsTunnelMessage.class);
                     handleWsFromServer(wsMsg);
                     return;
                 }
-                final var msg = mapper.treeToValue(node, HttpTunnelMessage.class);
-                if (msg.getType() == HttpTunnelMessage.Type.REQUEST) {
+                final var message = MAPPER.readValue(text, HttpTunnelMessage.class);
+                if (message.getType() == HttpTunnelMessage.Type.REQUEST) {
                     // Offload request processing to a worker thread to avoid blocking the WS listener
                     requestExecutor.submit(() -> {
                         try {
-                            final var resp = handleRequest(msg);
-                            final var json = mapper.writeValueAsString(resp);
+                            final var resp = handleRequest(message);
+                            final var json = MAPPER.writeValueAsString(resp);
                             HttpTunnelClient.this.webSocket.send(json);
                             log.debug("Responded to WS request: {}", resp.getId());
                         } catch (final Exception ex) {
-                            log.warn("Failed to handle tunneled request {}: {}", msg.getId(), ex.toString());
+                            log.warn("Failed to handle tunneled request {}: {}", message.getId(), ex.toString());
                             try {
-                                final var err = new HttpTunnelMessage();
-                                err.setId(msg.getId());
-                                err.setType(HttpTunnelMessage.Type.RESPONSE);
-                                err.setStatus(502);
-                                final var headers = new java.util.HashMap<String, String>();
-                                headers.put("Content-Type", "text/plain; charset=utf-8");
-                                err.setRespHeaders(headers);
-                                err.setRespBodyB64(Base64.getEncoder().encodeToString("Proxy error".getBytes(StandardCharsets.UTF_8)));
-                                HttpTunnelClient.this.webSocket.send(mapper.writeValueAsString(err));
+                                final var error = buildErrorMessage(message.getId(), 502, "Proxy error");
+                                HttpTunnelClient.this.webSocket.send(MAPPER.writeValueAsString(error));
                             } catch (final Exception e) {
                                 log.error("Failed to send error response: {}", e.getMessage(), e);
                             }
@@ -328,7 +320,7 @@ public class HttpTunnelClient {
                 final var ack = new WsTunnelMessage();
                 ack.setWsType(WsTunnelMessage.Type.OPEN_OK);
                 ack.setConnectionId(connectionId);
-                HttpTunnelClient.this.webSocket.send(mapper.writeValueAsString(ack));
+                HttpTunnelClient.this.webSocket.send(MAPPER.writeValueAsString(ack));
             } catch (final Exception ignore) {
                 log.error("Failed to send local WS open ack: {}", ignore.toString());
             }
@@ -341,7 +333,7 @@ public class HttpTunnelClient {
                 message.setWsType(WsTunnelMessage.Type.TEXT);
                 message.setConnectionId(connectionId);
                 message.setText(text);
-                HttpTunnelClient.this.webSocket.send(mapper.writeValueAsString(message));
+                HttpTunnelClient.this.webSocket.send(MAPPER.writeValueAsString(message));
             } catch (Exception e) {
                 log.debug("Failed to forward local text WS: {}", e.toString());
             }
@@ -354,7 +346,7 @@ public class HttpTunnelClient {
                 message.setWsType(WsTunnelMessage.Type.BINARY);
                 message.setConnectionId(connectionId);
                 message.setDataB64(Base64.getEncoder().encodeToString(bytes.toByteArray()));
-                HttpTunnelClient.this.webSocket.send(mapper.writeValueAsString(message));
+                HttpTunnelClient.this.webSocket.send(MAPPER.writeValueAsString(message));
             } catch (Exception e) {
                 log.debug("Failed to forward local binary WS: {}", e.toString());
             }
@@ -369,7 +361,7 @@ public class HttpTunnelClient {
                 message.setConnectionId(connectionId);
                 message.setCloseCode(code);
                 message.setCloseReason(reason);
-                HttpTunnelClient.this.webSocket.send(mapper.writeValueAsString(message));
+                HttpTunnelClient.this.webSocket.send(MAPPER.writeValueAsString(message));
             } catch (Exception e) {
                 log.debug("Failed to notify close: {}", e.toString());
             }
@@ -436,14 +428,7 @@ public class HttpTunnelClient {
             }
             return successMessage;
         } catch (final Exception e) {
-            final var errorMessage = new HttpTunnelMessage();
-            errorMessage.setId(requestMessage.getId());
-            errorMessage.setType(HttpTunnelMessage.Type.RESPONSE);
-            errorMessage.setStatus(502);
-            final var headers = new HashMap<String, String>();
-            headers.put("Content-Type", "text/plain; charset=utf-8");
-            errorMessage.setRespHeaders(headers);
-            errorMessage.setRespBodyB64(Base64.getEncoder().encodeToString(("Bad Gateway: " + e.getMessage()).getBytes(StandardCharsets.UTF_8)));
+            final var errorMessage = buildErrorMessage(requestMessage.getId(), 502, "Bad Gateway: " + e.getMessage());
             try {
                 if (httpLogSink != null) {
                     var displayUrl = publicBaseUrl;
@@ -460,6 +445,18 @@ public class HttpTunnelClient {
             }
             return errorMessage;
         }
+    }
+
+    private static HttpTunnelMessage buildErrorMessage(final String id, final int status, final String message) {
+        final var error = new HttpTunnelMessage();
+        error.setId(id);
+        error.setType(HttpTunnelMessage.Type.RESPONSE);
+        error.setStatus(status);
+        final var headers = Map.of("Content-Type", "text/plain; charset=utf-8");
+        error.setRespHeaders(headers);
+        error.setRespBodyB64(Base64.getEncoder().encodeToString((message).getBytes(StandardCharsets.UTF_8)));
+
+        return error;
     }
 
     private RequestBody buildBody(final String method, final String bodyB64) {

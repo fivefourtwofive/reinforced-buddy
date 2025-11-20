@@ -1,10 +1,11 @@
 package tech.amak.portbuddy.cli;
 
-import java.net.URI;
-import java.util.concurrent.Callable;
+import static tech.amak.portbuddy.cli.utils.JsonUtils.MAPPER;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
 
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.MediaType;
@@ -23,6 +24,8 @@ import tech.amak.portbuddy.cli.ui.ConsoleUi;
 import tech.amak.portbuddy.common.Mode;
 import tech.amak.portbuddy.common.dto.ExposeResponse;
 import tech.amak.portbuddy.common.dto.HttpExposeRequest;
+import tech.amak.portbuddy.common.dto.auth.TokenExchangeRequest;
+import tech.amak.portbuddy.common.dto.auth.TokenExchangeResponse;
 
 @Slf4j
 @Command(
@@ -43,9 +46,8 @@ public class PortBuddy implements Callable<Integer> {
         arity = "0..2",
         description = "[mode] [host:][port] or [schema://]host[:port]. Examples: '3000', 'localhost', 'example.com:8080', 'https://example.com'"
     )
-    private java.util.List<String> args = new java.util.ArrayList<>();
+    private List<String> args = new ArrayList<>();
 
-    private final ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
     private final OkHttpClient http = new OkHttpClient();
 
     static void main(String[] args) {
@@ -83,8 +85,24 @@ public class PortBuddy implements Callable<Integer> {
 
         final var config = configurationService.getConfig();
 
+        // 1) Ensure API key is present and exchange it for a JWT at startup
+        final var apiKey = config.getApiToken();
+        if (apiKey == null || apiKey.isBlank()) {
+            System.err.println("Authentication required. CLI must be initialized with a valid API Key.\n"
+                               + "Run: port-buddy init {API_TOKEN}");
+            return CommandLine.ExitCode.SOFTWARE;
+        }
+
+        final var jwt = exchangeApiTokenForJwt(config.getServerUrl(), apiKey);
+        if (jwt == null || jwt.isBlank()) {
+            System.err.println("Failed to authenticate with the provided API Key.\n"
+                               + "CLI must be initialized with a valid API Key.\n"
+                               + "Example: port-buddy init {API_TOKEN}");
+            return CommandLine.ExitCode.SOFTWARE;
+        }
+
         if (mode == Mode.HTTP) {
-            final var expose = callExposeHttp(config.getServerUrl(),
+            final var expose = callExposeHttp(config.getServerUrl(), jwt,
                 new HttpExposeRequest(hostPort.scheme, hostPort.host, hostPort.port));
             if (expose == null) {
                 System.err.println("Failed to contact server to create tunnel");
@@ -106,7 +124,7 @@ public class PortBuddy implements Callable<Integer> {
                 hostPort.host,
                 hostPort.port,
                 hostPort.scheme,
-                config.getApiToken(),
+                jwt,
                 publicInfo,
                 ui
             );
@@ -122,7 +140,7 @@ public class PortBuddy implements Callable<Integer> {
                 Thread.currentThread().interrupt();
             }
         } else {
-            final var expose = callExposeTcp(config.getServerUrl(),
+            final var expose = callExposeTcp(config.getServerUrl(), jwt,
                 new HttpExposeRequest("tcp", hostPort.host, hostPort.port));
             if (expose == null || expose.publicHost() == null || expose.publicPort() == null) {
                 System.err.println("Failed to contact server to create TCP tunnel");
@@ -136,7 +154,6 @@ public class PortBuddy implements Callable<Integer> {
                 System.err.println("Server did not return tunnelId");
                 return CommandLine.ExitCode.SOFTWARE;
             }
-            final var token = config.getApiToken();
             // Use configured API server URL for the WebSocket control channel, not the public TCP host
             final var serverUri = URI.create(config.getServerUrl());
             final var wsHost = serverUri.getHost();
@@ -144,7 +161,7 @@ public class PortBuddy implements Callable<Integer> {
                 ? ("https".equalsIgnoreCase(serverUri.getScheme()) ? 443 : 80)
                 : serverUri.getPort();
             final var secure = "https".equalsIgnoreCase(serverUri.getScheme());
-            final var tcpClient = new TcpTunnelClient(wsHost, wsPort, secure, tunnelId, hostPort.host, hostPort.port, token, ui);
+            final var tcpClient = new TcpTunnelClient(wsHost, wsPort, secure, tunnelId, hostPort.host, hostPort.port, jwt, ui);
             final var thread = new Thread(tcpClient::runBlocking, "port-buddy-tcp-client");
             ui.setOnExit(tcpClient::close);
             thread.start();
@@ -160,24 +177,23 @@ public class PortBuddy implements Callable<Integer> {
         return CommandLine.ExitCode.OK;
     }
 
-    private ExposeResponse callExposeHttp(String baseUrl, HttpExposeRequest reqBody) {
+    private ExposeResponse callExposeHttp(final String baseUrl, final String jwt, final HttpExposeRequest reqBody) {
         try {
             final var url = baseUrl + "/api/expose/http";
-            final var json = mapper.writeValueAsString(reqBody);
-            final var config = configurationService.getConfig();
-            final var apiToken = config.getApiToken();
+            final var json = MAPPER.writeValueAsString(reqBody);
             final var reqBuilder = new Request.Builder()
                 .url(url)
-                .post(RequestBody.create(json, MediaType.parse("application/json")));
-
-            if (apiToken != null && !apiToken.isBlank()) {
-                reqBuilder.header("Authorization", "Bearer " + apiToken);
-            }
+                .post(RequestBody.create(json, MediaType.parse("application/json")))
+                .header("Authorization", "Bearer " + jwt);
             final var request = reqBuilder.build();
 
             try (final var response = http.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
                     log.warn("Expose HTTP failed: {} {}", response.code(), response.message());
+                    if (response.code() == 401) {
+                        System.err.println("Authentication failed. Please re-initialize CLI with a valid API Key.\n"
+                                           + "Example: port-buddy init {API_TOKEN}");
+                    }
                     return null;
                 }
                 final var body = response.body();
@@ -185,7 +201,7 @@ public class PortBuddy implements Callable<Integer> {
                     return null;
                 }
                 final var str = body.string();
-                return mapper.readValue(str, ExposeResponse.class);
+                return MAPPER.readValue(str, ExposeResponse.class);
             }
         } catch (Exception e) {
             log.warn("Expose HTTP call error: {}", e.toString());
@@ -193,33 +209,70 @@ public class PortBuddy implements Callable<Integer> {
         }
     }
 
-    private ExposeResponse callExposeTcp(final String baseUrl, final HttpExposeRequest reqBody) {
+    private ExposeResponse callExposeTcp(final String baseUrl, final String jwt, final HttpExposeRequest reqBody) {
         try {
             final var url = baseUrl + "/api/expose/tcp";
-            final var json = mapper.writeValueAsString(reqBody);
-            final var config = configurationService.getConfig();
-            final var apiToken = config.getApiToken();
+            final var json = MAPPER.writeValueAsString(reqBody);
             final var reqBuilder = new Request.Builder()
                 .url(url)
-                .post(RequestBody.create(json, MediaType.parse("application/json")));
-            if (apiToken != null && !apiToken.isBlank()) {
-                reqBuilder.header("Authorization", "Bearer " + apiToken);
-            }
+                .post(RequestBody.create(json, MediaType.parse("application/json")))
+                .header("Authorization", "Bearer " + jwt);
             final var request = reqBuilder.build();
 
             try (final var response = http.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
                     log.warn("Expose TCP failed: {} {}", response.code(), response.message());
+                    if (response.code() == 401) {
+                        System.err.println("Authentication failed. Please re-initialize CLI with a valid API Key.\n"
+                                           + "Example: port-buddy init {API_TOKEN}");
+                    }
                     return null;
                 }
                 final var body = response.body();
                 if (body == null) {
                     return null;
                 }
-                return mapper.readValue(body.string(), ExposeResponse.class);
+                return MAPPER.readValue(body.string(), ExposeResponse.class);
             }
         } catch (final Exception e) {
             log.warn("Expose TCP call error: {}", e.toString());
+            return null;
+        }
+    }
+
+    /**
+     * Exchanges the provided API token for a JWT using the server's auth endpoint.
+     * Returns the JWT string if successful, otherwise null.
+     */
+    private String exchangeApiTokenForJwt(final String baseUrl, final String apiToken) {
+        try {
+            final var url = baseUrl + "/api/auth/token-exchange";
+            final var payload = new TokenExchangeRequest(apiToken);
+            final var json = MAPPER.writeValueAsString(payload);
+            final var request = new Request.Builder()
+                .url(url)
+                .post(RequestBody.create(json, MediaType.parse("application/json")))
+                .build();
+
+            try (final var response = http.newCall(request).execute()) {
+                if (!response.isSuccessful()) {
+                    log.warn("Token exchange failed: {} {}", response.code(), response.message());
+                    return null;
+                }
+                final var body = response.body();
+                if (body == null) {
+                    return null;
+                }
+                final var resp = MAPPER.readValue(body.string(), TokenExchangeResponse.class);
+                final var accessToken = resp.getAccessToken() == null ? "" : resp.getAccessToken();
+                final var tokenType = resp.getTokenType() == null ? "" : resp.getTokenType();
+                if (!accessToken.isBlank() && (tokenType.isBlank() || "Bearer".equalsIgnoreCase(tokenType))) {
+                    return accessToken;
+                }
+                return null;
+            }
+        } catch (final Exception e) {
+            log.warn("Token exchange call error: {}", e.toString());
             return null;
         }
     }
