@@ -2,10 +2,13 @@ package tech.amak.portbuddy.server.web;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.util.AntPathMatcher;
@@ -31,6 +34,20 @@ public class IngressController {
 
     private final TunnelRegistry registry;
 
+    private static final Set<String> HOP_BY_HOP_RESPONSE_HEADERS = Set.of(
+        // RFC 7230 hop-by-hop headers + common variants we do not want to relay
+        HttpHeaders.CONNECTION.toLowerCase(),
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailer",
+        HttpHeaders.TRANSFER_ENCODING.toLowerCase(),
+        HttpHeaders.UPGRADE.toLowerCase(),
+        // Avoid conflicting length management across hops; let container decide
+        HttpHeaders.CONTENT_LENGTH.toLowerCase()
+    );
+
     // Path-based fallback ingress for local/dev: http://server/_/{subdomain}/...
     @RequestMapping("/_/{subdomain}/**")
     public void ingressPathBased(final @PathVariable("subdomain") String subdomain,
@@ -53,18 +70,27 @@ public class IngressController {
         final var method = request.getMethod();
         final var query = request.getQueryString();
 
-        final Map<String, String> headers = new HashMap<>();
+        final Map<String, List<String>> headers = new HashMap<>();
         for (Enumeration<String> en = request.getHeaderNames(); en.hasMoreElements(); ) {
             final var name = en.nextElement();
             // Skip hop-by-hop headers
             if (name.equalsIgnoreCase(HttpHeaders.HOST) || name.equalsIgnoreCase(HttpHeaders.CONNECTION)) {
                 continue;
             }
-            headers.put(name, request.getHeader(name));
+            final List<String> values = new ArrayList<>();
+            for (Enumeration<String> headerValues = request.getHeaders(name); headerValues.hasMoreElements(); ) {
+                final var value = headerValues.nextElement();
+                if (value != null) {
+                    values.add(value);
+                }
+            }
+            if (!values.isEmpty()) {
+                headers.put(name, values);
+            }
         }
 
-        headers.put("X-Forwarded-Host", request.getServerName());
-        headers.put("X-Forwarded-Proto", request.isSecure() ? "https" : "http");
+        headers.put("X-Forwarded-Host", List.of(request.getServerName()));
+        headers.put("X-Forwarded-Proto", List.of(request.isSecure() ? "https" : "http"));
 
         final var bodyBytes = request.getInputStream().readAllBytes();
         final var bodyB64 = bodyBytes.length == 0 ? null : Base64.getEncoder().encodeToString(bodyBytes);
@@ -75,6 +101,7 @@ public class IngressController {
         msg.setQuery(query);
         msg.setHeaders(headers);
         msg.setBodyB64(bodyB64);
+        msg.setBodyContentType(request.getContentType());
 
         try {
             final var resp = registry.forwardRequest(subdomain, msg, Duration.ofSeconds(30)).join();
@@ -82,9 +109,20 @@ public class IngressController {
             response.setStatus(status);
             if (resp.getRespHeaders() != null) {
                 for (var header : resp.getRespHeaders().entrySet()) {
-                    // avoid sending null header values
-                    if (header.getValue() != null) {
-                        response.setHeader(header.getKey(), header.getValue());
+                    final var name = header.getKey();
+                    final var values = header.getValue();
+                    if (name == null || values == null) {
+                        continue;
+                    }
+                    final var nameLc = name.toLowerCase();
+                    if (HOP_BY_HOP_RESPONSE_HEADERS.contains(nameLc)) {
+                        // Skip hop-by-hop or conflicting headers
+                        continue;
+                    }
+                    for (var v : values) {
+                        if (v != null) {
+                            response.addHeader(name, v);
+                        }
                     }
                 }
             }

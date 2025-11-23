@@ -4,8 +4,10 @@ import static tech.amak.portbuddy.cli.utils.JsonUtils.MAPPER;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -56,7 +58,9 @@ public class HttpTunnelClient {
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
-        .followRedirects(true)
+        // Do not follow redirects automatically; they must be proxied back to the client
+        .followRedirects(false)
+        .followSslRedirects(false)
         .retryOnConnectionFailure(true)
         .build();
 
@@ -180,7 +184,7 @@ public class HttpTunnelClient {
     private class Listener extends WebSocketListener {
         @Override
         public void onOpen(final WebSocket webSocket, final Response response) {
-            log.info("Tunnel connected to server");
+            log.debug("Tunnel connected to server");
             // Start application-level heartbeat PINGs
             try {
                 if (heartbeatTask != null && !heartbeatTask.isCancelled()) {
@@ -382,19 +386,27 @@ public class HttpTunnelClient {
 
         final var targetRequest = new Request.Builder()
             .url(url)
-            .method(method, buildBody(method, requestMessage.getBodyB64()));
+            .method(method, buildBody(method, requestMessage.getBodyB64(), requestMessage.getBodyContentType()));
 
         if (requestMessage.getHeaders() != null) {
             for (var header : requestMessage.getHeaders().entrySet()) {
                 final var name = header.getKey();
-                final var value = header.getValue();
-                if (name == null || value == null) {
+                final var values = header.getValue();
+                if (name == null || values == null) {
                     continue;
                 }
                 if (name.equalsIgnoreCase("Host")) {
                     continue; // Host will be set by client
                 }
-                targetRequest.addHeader(name, value);
+                if (name.equalsIgnoreCase("Content-Type")) {
+                    // Content-Type is derived from RequestBody media type
+                    continue;
+                }
+                for (var value : values) {
+                    if (value != null) {
+                        targetRequest.addHeader(name, value);
+                    }
+                }
             }
         }
 
@@ -452,20 +464,21 @@ public class HttpTunnelClient {
         error.setId(id);
         error.setType(HttpTunnelMessage.Type.RESPONSE);
         error.setStatus(status);
-        final var headers = Map.of("Content-Type", "text/plain; charset=utf-8");
+        final var headers = Map.<String, List<String>>of("Content-Type", List.of("text/plain; charset=utf-8"));
         error.setRespHeaders(headers);
         error.setRespBodyB64(Base64.getEncoder().encodeToString((message).getBytes(StandardCharsets.UTF_8)));
 
         return error;
     }
 
-    private RequestBody buildBody(final String method, final String bodyB64) {
+    private RequestBody buildBody(final String method, final String bodyB64, final String contentType) {
         // Methods that usually don't have body
         if (bodyB64 == null) {
-            return methodSupportsBody(method) ? RequestBody.create(new byte[0], null) : null;
+            return methodSupportsBody(method) ? RequestBody.create(new byte[0], contentType != null ? MediaType.parse(contentType) : null) : null;
         }
         final var bytes = Base64.getDecoder().decode(bodyB64);
-        return RequestBody.create(bytes, MediaType.parse("application/octet-stream"));
+        final var mediaType = contentType != null && !contentType.isBlank() ? MediaType.parse(contentType) : MediaType.parse("application/octet-stream");
+        return RequestBody.create(bytes, mediaType);
     }
 
     private boolean methodSupportsBody(final String method) {
@@ -478,10 +491,13 @@ public class HttpTunnelClient {
         };
     }
 
-    private Map<String, String> extractHeaders(final Response response) {
-        final var map = new HashMap<String, String>();
+    private Map<String, List<String>> extractHeaders(final Response response) {
+        final var map = new HashMap<String, List<String>>();
         for (final var name : response.headers().names()) {
-            map.put(name, response.header(name));
+            final var values = response.headers(name);
+            if (values != null && !values.isEmpty()) {
+                map.put(name, new ArrayList<>(values));
+            }
         }
         return map;
     }

@@ -19,12 +19,21 @@ spring:
     gateway:
       server:
         webflux:
+#          httpserver:
+#            wiretap: true
           httpclient:
             websocket:
+              # Allow large WS frames (100 MiB)
               max-frame-payload-length: 104857600
+#            wiretap: true
+          x-forwarded:
+            enabled: true
           discovery:
             locator:
               lower-case-service-id: true
+#          filter:
+#            preserve-host-header:
+#              enabled: true
 
           routes:
             - id: tcp_tunnel_route
@@ -33,11 +42,32 @@ spring:
               predicates:
                 - Path=/api/tcp-tunnel/**
 
+            # WebSocket route for subdomain ingress. Must be evaluated before HTTP route.
+            - id: subdomain_ingress_ws_route
+              order: 0
+              uri: lb:ws://port-buddy-server
+              predicates:
+                - Host={subdomain}.localhost:8080
+                # Route ONLY real websocket upgrade requests to the WS upstream.
+                # Use case-insensitive match to be robust across clients/proxies.
+                - Header=Upgrade, (?i)websocket
+                # WebSocket handshakes are GET by spec; narrow to GET as an extra guard.
+                - Method=GET
+              filters:
+                - PreserveHostHeader
+                - name: PortBuddyRewritePath
+                  args:
+                    regexp: /(?<remaining>.*)
+                    replacement: /_ws/$\{subdomain}/$\{remaining}
+
+            # HTTP route for subdomain ingress (non-WS traffic)
             - id: subdomain_ingress_route
+              order: 1
               uri: lb://port-buddy-server
               predicates:
                 - Host={subdomain}.localhost:8080
               filters:
+                - PreserveHostHeader
                 - name: PortBuddyRewritePath
                   args:
                     regexp: /(?<remaining>.*)
@@ -55,6 +85,7 @@ spring:
               predicates:
                 - Path=/install, /app/**, /login/**, /auth/callback
 
+
 app:
   domain: localhost:8080
   scheme: http
@@ -67,3 +98,5 @@ app:
 logging:
   level:
     root: info
+    reactor.netty.http.client: debug
+    org.springframework.cloud.gateway: debug

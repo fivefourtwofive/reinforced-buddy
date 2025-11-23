@@ -1,5 +1,6 @@
 package tech.amak.portbuddy.common.tunnel;
 
+import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -38,7 +39,7 @@ public class HttpTunnelMessage {
     private String query;
 
     @JsonProperty("headers")
-    private Map<String, String> headers;
+    private Map<String, List<String>> headers;
 
     /**
      * Request body encoded as Base64.
@@ -46,12 +47,20 @@ public class HttpTunnelMessage {
     @JsonProperty("bodyB64")
     private String bodyB64;
 
+    /**
+     * Original request body media type (e.g., "application/json; charset=utf-8").
+     * The server captures this from the ingress request and the CLI uses it to
+     * reconstruct the upstream request body with the same Content-Type.
+     */
+    @JsonProperty("bodyContentType")
+    private String bodyContentType;
+
     // Response fields
     @JsonProperty("status")
     private Integer status;
 
     @JsonProperty("respHeaders")
-    private Map<String, String> respHeaders;
+    private Map<String, List<String>> respHeaders;
 
     /**
      * Response body encoded as Base64.
