@@ -7,6 +7,7 @@ package tech.amak.portbuddy.server.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
@@ -46,7 +47,13 @@ class DomainServiceTest {
         final var mail = new AppProperties.Mail("no-reply@localhost", "Port Buddy");
         final var portReservations =
             new AppProperties.PortReservations(new AppProperties.PortReservations.Range(40000, 60000));
-        final var appProps = new AppProperties(gateway, null, null, mail, portReservations);
+        final var appProps = new AppProperties(
+            gateway,
+            null,
+            null,
+            mail,
+            new AppProperties.Cli("1.0"),
+            portReservations);
 
         domainService = new DomainService(domainRepository, tunnelRepository, appProps);
         account = new AccountEntity();
@@ -58,9 +65,10 @@ class DomainServiceTest {
         when(domainRepository.existsBySubdomainGlobal(anyString())).thenReturn(false);
         when(domainRepository.save(any(DomainEntity.class))).thenAnswer(i -> i.getArguments()[0]);
 
-        final var domain = domainService.createDomain(account);
+        final var domainOpt = domainService.createDomain(account);
 
-        assertNotNull(domain);
+        assertTrue(domainOpt.isPresent());
+        final var domain = domainOpt.get();
         assertEquals("portbuddy.dev", domain.getDomain());
         assertNotNull(domain.getSubdomain());
         verify(domainRepository).save(any(DomainEntity.class));
@@ -76,7 +84,7 @@ class DomainServiceTest {
 
         final var domain = domainService.createDomain(account);
 
-        assertNotNull(domain);
+        assertTrue(domain.isPresent());
         // Called 3 times: 1st loop (collision), 2nd loop (success), post-loop check (success)
         verify(domainRepository, times(3)).existsBySubdomainGlobal(anyString());
     }

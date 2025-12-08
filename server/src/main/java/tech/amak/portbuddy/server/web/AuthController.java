@@ -19,10 +19,12 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import tech.amak.portbuddy.common.dto.auth.RegisterRequest;
 import tech.amak.portbuddy.common.dto.auth.RegisterResponse;
 import tech.amak.portbuddy.common.dto.auth.TokenExchangeRequest;
 import tech.amak.portbuddy.common.dto.auth.TokenExchangeResponse;
+import tech.amak.portbuddy.server.config.AppProperties;
 import tech.amak.portbuddy.server.db.repo.UserRepository;
 import tech.amak.portbuddy.server.security.JwtService;
 import tech.amak.portbuddy.server.service.ApiTokenService;
@@ -35,6 +37,7 @@ import tech.amak.portbuddy.server.web.dto.PasswordResetRequest;
 @RestController
 @RequestMapping(path = "/api/auth", produces = MediaType.APPLICATION_JSON_VALUE)
 @RequiredArgsConstructor
+@Slf4j
 public class AuthController {
 
     private final ApiTokenService apiTokenService;
@@ -43,6 +46,7 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final UserProvisioningService userProvisioningService;
     private final PasswordResetService passwordResetService;
+    private final AppProperties properties;
 
     /**
      * Exchanges a valid API token for a short-lived JWT suitable for authenticating API and WebSocket calls.
@@ -50,6 +54,15 @@ public class AuthController {
     @PostMapping("/token-exchange")
     public TokenExchangeResponse tokenExchange(final @RequestBody TokenExchangeRequest payload) {
         final var apiToken = payload == null ? "" : String.valueOf(payload.getApiToken()).trim();
+        final var cliClientVersion = payload == null ? null : payload.getCliClientVersion();
+        if (cliClientVersion == null || cliClientVersion.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UPGRADE_REQUIRED,
+                "CLI client version is missing or not supported. Please upgrade your port-buddy CLI.");
+        }
+        if (!isCliVersionSupported(cliClientVersion.trim(), properties.cli().minVersion())) {
+            throw new ResponseStatusException(HttpStatus.UPGRADE_REQUIRED,
+                "Your port-buddy CLI is outdated. Please upgrade to the latest version.");
+        }
         final var validatedOpt = apiTokenService.validateAndGetApiKey(apiToken);
         if (validatedOpt.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid API token");
@@ -64,13 +77,44 @@ public class AuthController {
         return new TokenExchangeResponse(jwt, "Bearer");
     }
 
+    private boolean isCliVersionSupported(final String clientVersion, final String minimalVersion) {
+        // allow dev builds
+        final var cv = clientVersion.toLowerCase();
+        if (cv.contains("dev")) {
+            return true;
+        }
+        return compareVersions(clientVersion, minimalVersion) >= 0;
+    }
+
+    private int compareVersions(final String v1, final String v2) {
+        final var a = v1.split("[.\\-]");
+        final var b = v2.split("[.\\-]");
+        final var len = Math.max(a.length, b.length);
+        for (var i = 0; i < len; i++) {
+            final var ai = i < a.length ? parseIntSafe(a[i]) : 0;
+            final var bi = i < b.length ? parseIntSafe(b[i]) : 0;
+            if (ai != bi) {
+                return Integer.compare(ai, bi);
+            }
+        }
+        return 0;
+    }
+
+    private int parseIntSafe(final String part) {
+        try {
+            return Integer.parseInt(part.replaceAll("[^0-9]", ""));
+        } catch (final Exception ignored) {
+            return 0;
+        }
+    }
+
     /**
      * Registers a new local user and returns an API key.
      */
     @PostMapping("/register")
     public RegisterResponse register(final @RequestBody RegisterRequest payload) {
-        if (payload == null || payload.getEmail() == null || payload.getPassword() == null) {
-            return new RegisterResponse(null, false, "Email and password are required", 400);
+        if (payload == null || payload.getEmail() == null) {
+            return new RegisterResponse(null, false, "Email is required", 400);
         }
 
         try {
@@ -80,11 +124,13 @@ public class AuthController {
                 payload.getPassword()
             );
             final var createdToken = apiTokenService.createToken(
-                provisioned.accountId(), provisioned.userId(), "cli-init");
+                provisioned.accountId(), provisioned.userId(), "prtb-client");
             return new RegisterResponse(createdToken.token(), true, "User registered successfully", 200);
         } catch (final IllegalArgumentException e) {
+            log.error(e.getMessage(), e);
             return new RegisterResponse(null, false, e.getMessage(), 400);
         } catch (final Exception e) {
+            log.error(e.getMessage(), e);
             return new RegisterResponse(null, false, "Internal Server Error: " + e.getMessage(), 500);
         }
     }
