@@ -12,10 +12,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 
 import lombok.extern.slf4j.Slf4j;
-import tech.amak.portbuddy.gateway.loadbalancer.PortBuddySubdomainLoadBalancer;
+import tech.amak.portbuddy.gateway.loadbalancer.NetProxyPublicHostLoadBalancer;
 
 @Slf4j
-public class PortBuddyServerLoadBalancerConfiguration {
+public class NetProxyLoadBalancerConfiguration {
 
     @Bean
     public ReactorServiceInstanceLoadBalancer reactorServiceInstanceLoadBalancer(
@@ -25,8 +25,7 @@ public class PortBuddyServerLoadBalancerConfiguration {
         final var serviceId = environment.getProperty(LoadBalancerClientFactory.PROPERTY_NAME);
         final ObjectProvider<ServiceInstanceListSupplier> provider =
             loadBalancerClientFactory.getLazyProvider(serviceId, ServiceInstanceListSupplier.class);
-        final var loadBalancer = new PortBuddySubdomainLoadBalancer(provider, serviceId);
-        log.info("Created PortBuddySubdomainLoadBalancer for service {}", serviceId);
-        return loadBalancer;
+        log.info("Created NetProxyPublicHostLoadBalancer for service {}", serviceId);
+        return new NetProxyPublicHostLoadBalancer(provider, serviceId);
     }
 }

@@ -33,6 +33,7 @@ import okhttp3.Response;
 import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
 import okio.ByteString;
+import tech.amak.portbuddy.cli.config.ConfigurationService;
 import tech.amak.portbuddy.cli.ui.HttpLogSink;
 import tech.amak.portbuddy.common.tunnel.ControlMessage;
 import tech.amak.portbuddy.common.tunnel.HttpTunnelMessage;
@@ -195,6 +196,8 @@ public class HttpTunnelClient {
                 if (heartbeatTask != null && !heartbeatTask.isCancelled()) {
                     heartbeatTask.cancel(true);
                 }
+                final var config = ConfigurationService.INSTANCE.getConfig();
+                final var intervalSec = config.getHealthcheckIntervalSec();
                 heartbeatTask = scheduler.scheduleAtFixedRate(() -> {
                     try {
                         final var ping = new ControlMessage();
@@ -204,7 +207,7 @@ public class HttpTunnelClient {
                     } catch (final Exception e) {
                         log.debug("Heartbeat send failed: {}", e.toString());
                     }
-                }, 0, 20, TimeUnit.SECONDS);
+                }, intervalSec, intervalSec, TimeUnit.SECONDS);
             } catch (final Exception e) {
                 log.debug("Failed to start heartbeat: {}", e.toString());
             }
