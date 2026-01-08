@@ -27,11 +27,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import tech.amak.portbuddy.common.dto.auth.RegisterRequest;
 import tech.amak.portbuddy.server.config.AppProperties;
 import tech.amak.portbuddy.server.db.entity.Role;
+import tech.amak.portbuddy.server.db.repo.UserAccountRepository;
 import tech.amak.portbuddy.server.db.repo.UserRepository;
 import tech.amak.portbuddy.server.security.JwtService;
 import tech.amak.portbuddy.server.service.ApiTokenService;
 import tech.amak.portbuddy.server.service.user.PasswordResetService;
 import tech.amak.portbuddy.server.service.user.UserProvisioningService;
+import tech.amak.portbuddy.server.service.user.UserProvisioningService.ProvisionedUser;
 import tech.amak.portbuddy.server.web.dto.PasswordResetRequest;
 
 @WebMvcTest(AuthController.class)
@@ -65,6 +67,9 @@ class AuthControllerTest {
     @MockitoBean
     private AppProperties appProperties;
 
+    @MockitoBean
+    private UserAccountRepository userAccountRepository;
+
     @Test
     void register_shouldReturnApiKey() throws Exception {
         final var request = new RegisterRequest("test@example.com", "Test User", "password");
@@ -73,7 +78,7 @@ class AuthControllerTest {
         final var apiKey = "test-api-key";
 
         when(userProvisioningService.createLocalUser(any(), any(), any()))
-            .thenReturn(new UserProvisioningService.ProvisionedUser(userId, accountId, Set.of(Role.ACCOUNT_ADMIN)));
+            .thenReturn(new ProvisionedUser(userId, accountId, "Test Account", Set.of(Role.ACCOUNT_ADMIN)));
 
         when(apiTokenService.createToken(accountId, userId, "prtb-client"))
             .thenReturn(new ApiTokenService.CreatedToken(UUID.randomUUID().toString(), apiKey));

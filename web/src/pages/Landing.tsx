@@ -15,14 +15,15 @@ import {
 } from '@heroicons/react/24/outline'
 import React from 'react'
 import Seo from '../components/Seo'
+import PlanComparison from '../components/PlanComparison'
 
 export default function Landing() {
   return (
     <div className="flex flex-col gap-24 pb-24">
       <Seo 
         title="Port Buddy - Expose Localhost to the Internet | Ngrok Alternative"
-        description="Securely expose your local web server, database, or TCP service to the internet. The best free ngrok alternative for developers. Supports HTTP & TCP tunneling."
-        keywords="ngrok alternative, localhost tunneling, expose port, port forwarding, reverse proxy, tcp proxy, local development, port buddy"
+        description="Securely expose your local web server, database, or TCP/UDP service to the internet. The best free ngrok alternative for developers. Supports HTTP, TCP & UDP tunneling."
+        keywords="ngrok alternative, localhost tunneling, expose port, port forwarding, reverse proxy, tcp proxy, udp proxy, local development, port buddy"
       />
       {/* Hero Section */}
       <section className="relative pt-20 md:pt-32 px-4">
@@ -44,7 +45,7 @@ export default function Landing() {
             </h1>
             
             <p className="text-xl text-slate-400 mb-10 leading-relaxed">
-              Expose your local web server, database, or any TCP service to the internet securely. 
+              Expose your local web server, database, or any TCP/UDP service to the internet securely. 
               No firewalls, no DNS configuration, just one command.
             </p>
             
@@ -88,7 +89,7 @@ export default function Landing() {
                 </div>
                 <div className="flex gap-8 text-slate-300">
                   <span className="text-slate-500">Account</span>
-                  <span>anton@example.com (Developer)</span>
+                  <span>anton@example.com (Team)</span>
                 </div>
                 <div className="flex gap-8 text-slate-300">
                   <span className="text-slate-500">Region</span>
@@ -135,8 +136,8 @@ export default function Landing() {
           />
           <FeatureCard 
             icon={<ServerIcon className="w-6 h-6 text-cyan-400" />}
-            title="TCP Tunnels"
-            description="Expose any TCP service. Databases (Postgres, MySQL), SSH, RDP, game servers, and more."
+            title="TCP & UDP Tunnels"
+            description="Expose any TCP or UDP service. Databases, SSH, RDP, game servers, IoT protocols, and more."
           />
           <FeatureCard 
             icon={<ShieldCheckIcon className="w-6 h-6 text-green-400" />}
@@ -287,39 +288,42 @@ export default function Landing() {
         <h2 className="text-3xl md:text-4xl font-bold text-white text-center mb-16">Simple Pricing</h2>
         <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           <PriceCard 
-            name="Hobby"
+            name="Pro"
             price="$0"
-            description="Perfect for personal projects and quick tests."
+            description="Everything you need for personal exposure."
             features={[
-              'HTTP/HTTPS tunnels',
-              '2 static subdomains',
-              'Request inspection',
-              '2 concurrent tunnels',
-              '1 hour tunnel lifetime',
-              'Community support'
+              'HTTP, TCP, UDP tunnels',
+              'SSL for HTTP tunnels',
+              'Static subdomains',
+              'Custom domains',
+              'Private tunnels',
+              'Web socket support',
+              '1 free tunnel at a time',
+              '$1/mo per extra tunnel'
             ]}
             cta="Start for Free"
             ctaLink="/install"
           />
           <PriceCard 
-            name="Developer"
+            name="Team"
             price="$10"
             period="/mo"
-            description="For power users who need custom domains and TCP."
+            description="For teams and collaborative projects."
             features={[
-              'Everything in Hobby',
-              'TCP tunnels (Databases, SSH)',
-              '10 static subdomains',
-              '1 Custom Domain (BYO)',
-              '10 concurrent tunnels',
-              'Unlimited tunnel lifetime',
-              'Priority support'
+              'Everything in Pro',
+              'Team members',
+              'SSO (Coming soon)',
+              'Priority support',
+              '10 free tunnels at a time',
+              '$1/mo per extra tunnel'
             ]}
             highlight
-            cta="Start Trial"
-            ctaLink="/login"
+            cta="Get Started"
+            ctaLink="/app/billing"
           />
         </div>
+
+        <PlanComparison />
       </section>
 
       {/* Final CTA */}

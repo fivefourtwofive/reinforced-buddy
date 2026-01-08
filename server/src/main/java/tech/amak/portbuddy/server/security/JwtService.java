@@ -68,7 +68,7 @@ public class JwtService {
             claims.forEach(builder::claim);
         }
         if (roles != null && !roles.isEmpty()) {
-            builder.claim("roles", roles.stream().map(Enum::name).collect(Collectors.toSet()));
+            builder.claim(Oauth2SuccessHandler.ROLES_CLAIM, roles.stream().map(Enum::name).collect(Collectors.toSet()));
         }
         final var header = JwsHeader.with(SignatureAlgorithm.RS256)
             .type(TOKEN_TYPE)
@@ -80,5 +80,19 @@ public class JwtService {
 
     public static UUID resolveUserId(final Jwt jwt) {
         return UUID.fromString(jwt.getSubject());
+    }
+
+    /**
+     * Resolves the account id from the JWT token.
+     *
+     * @param jwt the JWT token.
+     * @return the account id.
+     */
+    public static UUID resolveAccountId(final Jwt jwt) {
+        final var claim = jwt.getClaimAsString(Oauth2SuccessHandler.ACCOUNT_ID_CLAIM);
+        if (claim == null) {
+            throw new IllegalArgumentException("Account ID claim is missing.");
+        }
+        return UUID.fromString(claim);
     }
 }

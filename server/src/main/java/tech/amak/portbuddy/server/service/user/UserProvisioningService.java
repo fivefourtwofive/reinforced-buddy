@@ -19,10 +19,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import tech.amak.portbuddy.common.Plan;
 import tech.amak.portbuddy.server.db.entity.AccountEntity;
 import tech.amak.portbuddy.server.db.entity.Role;
+import tech.amak.portbuddy.server.db.entity.UserAccountEntity;
 import tech.amak.portbuddy.server.db.entity.UserEntity;
 import tech.amak.portbuddy.server.db.repo.AccountRepository;
+import tech.amak.portbuddy.server.db.repo.UserAccountRepository;
 import tech.amak.portbuddy.server.db.repo.UserRepository;
 import tech.amak.portbuddy.server.mail.UserCreatedEvent;
 import tech.amak.portbuddy.server.service.DomainService;
@@ -35,13 +38,14 @@ public class UserProvisioningService {
 
     private final UserRepository userRepository;
     private final AccountRepository accountRepository;
+    private final UserAccountRepository userAccountRepository;
     private final PasswordEncoder passwordEncoder;
     private final DomainService domainService;
     private final PortReservationService portReservationService;
     private final ApplicationEventPublisher eventPublisher;
     private final PasswordResetService passwordResetService;
 
-    public record ProvisionedUser(UUID userId, UUID accountId, Set<Role> roles) {
+    public record ProvisionedUser(UUID userId, UUID accountId, String accountName, Set<Role> roles) {
     }
 
     /**
@@ -74,23 +78,24 @@ public class UserProvisioningService {
         final var account = new AccountEntity();
         account.setId(UUID.randomUUID());
         account.setName(defaultAccountName(firstName, lastName, normalizedEmail));
-        account.setPlan("BASIC");
+        account.setPlan(Plan.PRO);
         accountRepository.save(account);
 
         final var user = new UserEntity();
         user.setId(UUID.randomUUID());
-        user.setAccount(account);
         user.setEmail(normalizedEmail);
         user.setFirstName(firstName);
         user.setLastName(lastName);
         user.setAuthProvider("local");
         user.setExternalId(normalizedEmail);
-        user.setRoles(determineRoles(true));
         Optional.ofNullable(password)
             .filter(StringUtils::isNotBlank)
             .map(passwordEncoder::encode)
             .ifPresent(user::setPassword);
         userRepository.save(user);
+
+        final var userAccount = new UserAccountEntity(user, account, determineRoles(true));
+        userAccountRepository.save(userAccount);
 
         // Try to create an initial port reservation and domain for the account by this user
         try {
@@ -111,12 +116,12 @@ public class UserProvisioningService {
             user.getId(), account.getId(), user.getEmail(), user.getFirstName(), user.getLastName(), resetPasswordLink
         ));
 
-        return new ProvisionedUser(user.getId(), account.getId(), user.getRoles());
+        return new ProvisionedUser(user.getId(), account.getId(), account.getName(), userAccount.getRoles());
     }
 
     /**
      * Ensures a user and an owning account exist for the given identity. If the user does not exist,
-     * a new account (default plan BASIC) and user are created. If the user exists, profile fields are updated.
+     * a new account (default plan PRO) and user are created. If the user exists, profile fields are updated.
      *
      * @param provider   the OAuth2 provider registration id (e.g. google, github)
      * @param externalId the unique external identifier from the provider (subject/id)
@@ -160,7 +165,11 @@ public class UserProvisioningService {
             if (changed) {
                 userRepository.save(user);
             }
-            return new ProvisionedUser(user.getId(), user.getAccount().getId(), user.getRoles());
+            final var userAccount = userAccountRepository.findLatestUsedByUserId(user.getId())
+                .orElseThrow(() -> new IllegalStateException("User has no accounts"));
+            final var account = userAccount.getAccount();
+
+            return new ProvisionedUser(user.getId(), account.getId(), account.getName(), userAccount.getRoles());
         }
 
         // For new identities we must have a non-null email to create/merge a user
@@ -203,7 +212,11 @@ public class UserProvisioningService {
                 if (changed) {
                     userRepository.save(user);
                 }
-                return new ProvisionedUser(user.getId(), user.getAccount().getId(), user.getRoles());
+                final var userAccount = userAccountRepository.findLatestUsedByUserId(user.getId())
+                    .orElseThrow(() -> new IllegalStateException("User has no accounts"));
+                final var account = userAccount.getAccount();
+
+                return new ProvisionedUser(user.getId(), account.getId(), account.getName(), userAccount.getRoles());
             }
         }
 
@@ -211,20 +224,21 @@ public class UserProvisioningService {
         final var account = new AccountEntity();
         account.setId(UUID.randomUUID());
         account.setName(defaultAccountName(firstName, lastName, email));
-        account.setPlan("BASIC");
+        account.setPlan(Plan.PRO);
         accountRepository.save(account);
 
         final var user = new UserEntity();
         user.setId(UUID.randomUUID());
-        user.setAccount(account);
         user.setEmail(normalizedEmail);
         user.setFirstName(firstName);
         user.setLastName(lastName);
         user.setAuthProvider(provider);
         user.setExternalId(externalId);
         user.setAvatarUrl(avatarUrl);
-        user.setRoles(determineRoles(true));
         userRepository.save(user);
+
+        final var userAccount = new UserAccountEntity(user, account, determineRoles(true));
+        userAccountRepository.save(userAccount);
 
         // Try to create an initial port reservation and domain for the account by this user
         try {
@@ -239,7 +253,7 @@ public class UserProvisioningService {
             user.getId(), account.getId(), user.getEmail(), user.getFirstName(), user.getLastName(), null
         ));
 
-        return new ProvisionedUser(user.getId(), account.getId(), user.getRoles());
+        return new ProvisionedUser(user.getId(), account.getId(), account.getName(), userAccount.getRoles());
     }
 
     private static String defaultAccountName(final String firstName, final String lastName, final String email) {

@@ -1,21 +1,42 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
-import type { ComponentType, SVGProps } from 'react'
+import { ComponentType, SVGProps, useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { PageHeaderProvider, usePageHeader } from './PageHeader'
+import { apiJson } from '../lib/api'
 import {
   AcademicCapIcon,
   ArrowsRightLeftIcon,
+  ChevronUpDownIcon,
   Cog8ToothIcon,
   GlobeAltIcon,
   LinkIcon,
   LockClosedIcon,
   WalletIcon,
+  UserGroupIcon,
   PowerIcon,
   ShieldCheckIcon,
 } from '@heroicons/react/24/outline'
 
+type UserAccount = {
+  accountId: string
+  accountName: string
+  plan: string
+  roles: string[]
+  lastUsedAt: string
+}
+
 export default function AppLayout() {
-  const { user, logout } = useAuth()
+  const { user, logout, switchAccount } = useAuth()
+  const [accounts, setAccounts] = useState<UserAccount[]>([])
+  const [showAccountSwitcher, setShowAccountSwitcher] = useState(false)
+
+  useEffect(() => {
+    if (user) {
+      void apiJson<UserAccount[]>('/api/users/me/accounts').then(setAccounts)
+    }
+  }, [user])
+
+  const otherAccounts = accounts.filter(a => a.accountId !== user?.accountId)
 
   return (
     <div className="min-h-screen flex bg-slate-950">
@@ -33,14 +54,55 @@ export default function AppLayout() {
             </Link>
           </div>
 
+          {/* Account Switcher */}
+          <div className="px-4 py-4 border-b border-slate-800 relative">
+            <button
+              disabled={otherAccounts.length === 0}
+              onClick={() => setShowAccountSwitcher(!showAccountSwitcher)}
+              className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-800/50 text-white transition-colors border border-slate-700/50 ${
+                otherAccounts.length > 0 ? 'hover:bg-slate-800 cursor-pointer' : 'cursor-default'
+              }`}
+            >
+              <div className="flex flex-col items-start min-w-0">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Account</span>
+                <span className="text-sm font-medium truncate w-full text-left">
+                  {user?.accountName || 'Select Account'}
+                </span>
+              </div>
+              {otherAccounts.length > 0 && <ChevronUpDownIcon className="h-5 w-5 text-slate-400 shrink-0" />}
+            </button>
+
+            {showAccountSwitcher && (
+              <div className="absolute top-full left-4 right-4 mt-1 z-50 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden py-1">
+                {otherAccounts.map(account => (
+                  <button
+                    key={account.accountId}
+                    onClick={() => {
+                      void switchAccount(account.accountId)
+                      setShowAccountSwitcher(false)
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+                  >
+                    {account.accountName}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Nav list (scrollable middle) */}
           <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-1">
             <SideLink to="/app" end label="Tunnels" Icon={ArrowsRightLeftIcon} />
             <SideLink to="/app/tokens" label="Access Tokens" Icon={LockClosedIcon} />
             <SideLink to="/app/domains" label="Domains" Icon={GlobeAltIcon} />
             <SideLink to="/app/ports" label="Port Reservations" Icon={LinkIcon} />
-            <SideLink to="/app/billing" label="Billing" Icon={WalletIcon} />
-            <SideLink to="/app/settings" label="Settings" Icon={Cog8ToothIcon} />
+            <SideLink to="/app/team" label="Team" Icon={UserGroupIcon} />
+            {(user?.roles?.includes('ACCOUNT_ADMIN')) && (
+              <SideLink to="/app/billing" label="Billing" Icon={WalletIcon} />
+            )}
+            {user?.roles?.includes('ACCOUNT_ADMIN') && (
+              <SideLink to="/app/settings" label="Settings" Icon={Cog8ToothIcon} />
+            )}
             {user?.roles?.includes('ADMIN') && (
               <SideLink to="/app/admin" label="Admin Panel" Icon={ShieldCheckIcon} />
             )}
@@ -55,7 +117,7 @@ export default function AppLayout() {
               </a>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
+              <Link to="/app/profile" className="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity">
                 {user?.avatarUrl ? (
                   <img src={user.avatarUrl} alt="avatar" className="w-9 h-9 rounded-full border border-slate-700" />
                 ) : (
@@ -67,7 +129,7 @@ export default function AppLayout() {
                   <div className="text-sm font-medium text-white truncate">{user?.name || user?.email || 'Unknown user'}</div>
                   <div className="text-slate-500 text-xs truncate">{user?.email}</div>
                 </div>
-              </div>
+              </Link>
               <button
                 type="button"
                 aria-label="Logout"

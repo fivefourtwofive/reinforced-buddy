@@ -2,18 +2,26 @@ import { Link, Navigate, Outlet, Route, Routes, useLocation } from 'react-router
 import { useEffect, useState } from 'react'
 import Landing from './pages/Landing'
 import Installation from './pages/Installation'
+import AcceptInvite from './pages/AcceptInvite'
 import Login from './pages/Login'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import Billing from './pages/app/Billing'
+import BillingSuccess from './pages/app/BillingSuccess'
+import BillingCancel from './pages/app/BillingCancel'
 import ProtectedRoute from './components/ProtectedRoute'
 import { useAuth } from './auth/AuthContext'
 import AppLayout from './components/AppLayout'
+import { useLoading } from './components/LoadingContext'
+import ProgressBar from './components/ProgressBar'
+import { setLoadingCallbacks } from './lib/api'
 import Tunnels from './pages/app/Tunnels'
 import Tokens from './pages/app/Tokens'
 import Domains from './pages/app/Domains'
 import Settings from './pages/app/Settings'
+import Team from './pages/app/Team'
 import Ports from './pages/app/Ports'
+import Profile from './pages/app/Profile'
 import AdminPanel from './pages/app/AdminPanel'
 import NotFound from './pages/NotFound'
 import ServerError from './pages/ServerError'
@@ -42,13 +50,20 @@ function ScrollToHash() {
 
 export default function App() {
   const { user, logout } = useAuth()
+  const { startLoading, stopLoading } = useLoading()
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
+  
+  useEffect(() => {
+    setLoadingCallbacks(startLoading, stopLoading)
+  }, [startLoading, stopLoading])
+
   const isApp = location.pathname.startsWith('/app')
   const showHeader = !isApp && !['/login', '/forgot-password', '/reset-password'].includes(location.pathname)
 
   return (
     <div className="min-h-full flex flex-col bg-slate-950 text-slate-200">
+      <ProgressBar />
       {showHeader && (
       <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur fixed w-full top-0 z-50">
         <div className="container flex items-center justify-between py-4 relative">
@@ -110,6 +125,7 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPassword/>} />
           <Route path="/reset-password" element={<ResetPassword/>} />
           <Route path="/auth/callback" element={<Login/>} />
+          <Route path="/accept-invite" element={<AcceptInvite/>} />
           <Route path="/passcode" element={<Passcode/>} />
           {/* App area with sidebar layout */}
           <Route path="/app" element={<ProtectedRoute><AppLayout/></ProtectedRoute>}>
@@ -117,14 +133,17 @@ export default function App() {
             <Route path="tokens" element={<Tokens/>} />
             <Route path="domains" element={<Domains/>} />
             <Route path="ports" element={<Ports/>} />
-            <Route path="billing" element={<Billing/>} />
-            <Route path="settings" element={<Settings/>} />
+            <Route path="team" element={<Team/>} />
+            <Route path="billing" element={<ProtectedRoute role="ACCOUNT_ADMIN"><Billing/></ProtectedRoute>} />
+            <Route path="billing/success" element={<BillingSuccess/>} />
+            <Route path="billing/cancel" element={<BillingCancel/>} />
+            <Route path="settings" element={<ProtectedRoute role="ACCOUNT_ADMIN"><Settings/></ProtectedRoute>} />
+            <Route path="profile" element={<Profile/>} />
             <Route path="admin" element={<ProtectedRoute role="ADMIN"><AdminPanel/></ProtectedRoute>} />
             {/* Unknown app routes redirect to dashboard */}
             <Route path="*" element={<Navigate to="/app" replace />} />
           </Route>
           {/* Backward-compat for old links */}
-          <Route path="/app/profile" element={<Navigate to="/app/settings" replace />} />
           <Route path="/app/subscription" element={<Navigate to="/app/billing" replace />} />
           {/* Global 404 */}
           <Route path="/500" element={<ServerError/>} />

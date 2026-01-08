@@ -5,6 +5,7 @@
 package tech.amak.portbuddy.server.service;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -13,11 +14,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import tech.amak.portbuddy.common.Plan;
 import tech.amak.portbuddy.common.dto.ExposeRequest;
+import tech.amak.portbuddy.server.config.AppProperties;
+import tech.amak.portbuddy.server.db.entity.AccountEntity;
 import tech.amak.portbuddy.server.db.entity.DomainEntity;
 import tech.amak.portbuddy.server.db.entity.PortReservationEntity;
 import tech.amak.portbuddy.server.db.entity.TunnelEntity;
 import tech.amak.portbuddy.server.db.entity.TunnelStatus;
+import tech.amak.portbuddy.server.db.repo.AccountRepository;
 import tech.amak.portbuddy.server.db.repo.TunnelRepository;
 
 @Service
@@ -25,13 +30,17 @@ import tech.amak.portbuddy.server.db.repo.TunnelRepository;
 @Slf4j
 public class TunnelService {
 
+    public static final List<TunnelStatus> ACTIVE_STATUSES = List.of(TunnelStatus.CONNECTED, TunnelStatus.PENDING);
+
     private final TunnelRepository tunnelRepository;
+    private final AccountRepository accountRepository;
+    private final AppProperties properties;
 
     /**
      * Creates a new HTTP tunnel using the database entity id as the tunnel id.
      * The record is saved with a 'PENDING' status and returned id is used as the tunnel identifier.
      *
-     * @param accountId The unique identifier of the account creating the tunnel.
+     * @param account   The account creating the tunnel.
      * @param userId    The unique identifier of the user creating the tunnel.
      * @param apiKeyId  The optional API key identifier associated with the tunnel.
      * @param request   The HTTP expose request containing details of the local HTTP service (scheme, host, port).
@@ -40,31 +49,116 @@ public class TunnelService {
      * @return the created tunnel id (same as entity id string)
      */
     @Transactional
-    public TunnelEntity createHttpTunnel(final UUID accountId,
+    public TunnelEntity createHttpTunnel(final AccountEntity account,
                                          final UUID userId,
                                          final String apiKeyId,
                                          final ExposeRequest request,
                                          final String publicUrl,
                                          final DomainEntity domain) {
-        return createTunnel(accountId, userId, apiKeyId, request, publicUrl, domain);
+        checkTunnelLimit(account);
+        return createTunnel(account.getId(), userId, apiKeyId, request, publicUrl, domain);
     }
 
     /**
      * Creates a pending TCP tunnel and returns its tunnel id (entity id).
      * Public host/port can be set later via {@link #updateTunnelPublicConnection(UUID, String, Integer)}.
      *
-     * @param accountId The unique identifier of the account creating the tunnel.
-     * @param userId    The unique identifier of the user creating the tunnel.
-     * @param apiKeyId  The optional API key identifier associated with the tunnel.
-     * @param request   The expose request containing details of the local service.
+     * @param account  The account creating the tunnel.
+     * @param userId   The unique identifier of the user creating the tunnel.
+     * @param apiKeyId The optional API key identifier associated with the tunnel.
+     * @param request  The expose request containing details of the local service.
      * @return the created tunnel id (same as entity id string)
      */
     @Transactional
-    public TunnelEntity createNetTunnel(final UUID accountId,
+    public TunnelEntity createNetTunnel(final AccountEntity account,
                                         final UUID userId,
                                         final String apiKeyId,
                                         final ExposeRequest request) {
-        return createTunnel(accountId, userId, apiKeyId, request, null, null);
+        checkTunnelLimit(account);
+        return createTunnel(account.getId(), userId, apiKeyId, request, null, null);
+    }
+
+    private void checkSubscriptionStatus(final AccountEntity account) {
+        final var status = account.getSubscriptionStatus();
+        if (status == null) {
+            // Allow Pro plan with 0 extra tunnels without an active subscription record
+            if (account.getPlan() == Plan.PRO && account.getExtraTunnels() == 0) {
+                return;
+            }
+            throw new IllegalStateException("No active subscription found. Please check your billing information.");
+        }
+        if (!"active".equals(status)) {
+            throw new IllegalStateException(
+                "Subscription is not active (current status: %s). Please check your billing information."
+                    .formatted(status));
+        }
+    }
+
+    private void checkTunnelLimit(final AccountEntity account) {
+        checkSubscriptionStatus(account);
+
+        final var currentTunnels = tunnelRepository.countByAccountIdAndStatusIn(account.getId(), ACTIVE_STATUSES);
+
+        final int totalLimit = calculateTunnelLimit(account);
+
+        if (currentTunnels >= totalLimit) {
+            throw new IllegalStateException(
+                "Tunnel limit reached for your plan (%d). Please upgrade or add more tunnels.".formatted(totalLimit));
+        }
+    }
+
+    /**
+     * Calculates the total tunnel limit for an account (base plan limit + extra tunnels).
+     *
+     * @param account the account entity
+     * @return the total number of allowed tunnels
+     */
+    public int calculateTunnelLimit(final AccountEntity account) {
+        final var plan = account.getPlan();
+
+        final var baseLimit = properties.subscriptions().tunnels().base().get(plan);
+
+        return baseLimit + account.getExtraTunnels();
+    }
+
+    /**
+     * Checks if the account exceeds its tunnel limit and closes excess tunnels if necessary.
+     * Tunnels are closed starting from the ones with no heartbeat or the oldest heartbeat.
+     *
+     * @param account the account entity to check
+     */
+    @Transactional
+    public void enforceTunnelLimit(final AccountEntity account) {
+        final int limit = calculateTunnelLimit(account);
+        closeExcessTunnels(account, limit);
+    }
+
+    /**
+     * Closes all active tunnels for the given account.
+     *
+     * @param account the account entity
+     */
+    @Transactional
+    public void closeAllTunnels(final AccountEntity account) {
+        closeExcessTunnels(account, 0);
+    }
+
+    private void closeExcessTunnels(final AccountEntity account, final int limit) {
+        final List<TunnelEntity> activeTunnels = tunnelRepository
+            .findByAccountIdAndStatusInOrderByLastHeartbeatAtAscCreatedAtAsc(account.getId(), ACTIVE_STATUSES);
+
+        if (activeTunnels.size() > limit) {
+            final int toClose = activeTunnels.size() - limit;
+            log.info("Account {} has {} active tunnels (limit={}). Closing {} tunnels.",
+                account.getId(), activeTunnels.size(), limit, toClose);
+
+            for (int i = 0; i < toClose; i++) {
+                final var tunnel = activeTunnels.get(i);
+                log.info("Closing tunnel: tunnelId={} accountId={}", tunnel.getId(), account.getId());
+                tunnel.setStatus(TunnelStatus.CLOSED);
+                tunnelRepository.save(tunnel);
+            }
+        }
     }
 
     private TunnelEntity createTunnel(final UUID accountId,
@@ -176,6 +270,9 @@ public class TunnelService {
     @Transactional
     public void markConnected(final UUID tunnelId) {
         findByTunnelId(tunnelId).ifPresent(entity -> {
+            accountRepository.findById(entity.getAccountId())
+                .ifPresent(this::checkSubscriptionStatus);
+
             entity.setStatus(TunnelStatus.CONNECTED);
             entity.setLastHeartbeatAt(OffsetDateTime.now());
             tunnelRepository.save(entity);
@@ -193,6 +290,9 @@ public class TunnelService {
     @Transactional
     public void heartbeat(final UUID tunnelId) {
         findByTunnelId(tunnelId).ifPresent(entity -> {
+            accountRepository.findById(entity.getAccountId())
+                .ifPresent(this::checkSubscriptionStatus);
+
             entity.setLastHeartbeatAt(OffsetDateTime.now());
             tunnelRepository.save(entity);
         });

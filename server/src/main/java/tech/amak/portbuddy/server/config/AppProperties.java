@@ -6,10 +6,13 @@ package tech.amak.portbuddy.server.config;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.core.io.Resource;
 import org.springframework.util.unit.DataSize;
+
+import tech.amak.portbuddy.common.Plan;
 
 @ConfigurationProperties(prefix = "app")
 public record AppProperties(
@@ -18,8 +21,19 @@ public record AppProperties(
     Jwt jwt,
     Mail mail,
     Cli cli,
-    PortReservations portReservations
+    PortReservations portReservations,
+    Subscriptions subscriptions,
+    Stripe stripe
 ) {
+    public record Subscriptions(
+        Duration gracePeriod,
+        Duration checkInterval,
+        Tunnels tunnels
+    ) {
+        public record Tunnels(Map<Plan, Integer> base, Map<Plan, Integer> increment) {
+        }
+    }
+
     public record Gateway(
         String url,
         String domain,
@@ -77,5 +91,18 @@ public record AppProperties(
     public record Cli(
         String minVersion
     ) {
+    }
+
+    public record Stripe(
+        String webhookSecret,
+        String apiKey,
+        PriceIds priceIds
+    ) {
+        public record PriceIds(
+            String pro,
+            String team,
+            String extraTunnel
+        ) {
+        }
     }
 }
