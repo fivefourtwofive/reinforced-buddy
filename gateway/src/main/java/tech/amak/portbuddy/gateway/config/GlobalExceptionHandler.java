@@ -7,9 +7,11 @@ package tech.amak.portbuddy.gateway.config;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.reactive.result.view.RedirectView;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.util.UriUtils;
 
@@ -22,6 +24,12 @@ import lombok.extern.slf4j.Slf4j;
 public class GlobalExceptionHandler {
 
     private final AppProperties properties;
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ProblemDetail handleIllegalArgumentException(final ResponseStatusException ex) {
+        log.error("Status exception: Status: {} - {}", ex.getStatusCode(), ex.getMessage());
+        return ProblemDetail.forStatusAndDetail(ex.getStatusCode(), ex.getMessage());
+    }
 
     /**
      * Handles all uncaught exceptions by logging the error and redirecting to a server error page
