@@ -13,7 +13,6 @@ import javax.net.ssl.X509TrustManager;
 import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
-import tech.amak.portbuddy.cli.config.ConfigurationService;
 
 @Slf4j
 @UtilityClass
@@ -27,9 +26,7 @@ public class HttpUtils {
      */
     public static OkHttpClient createClient() {
         final var builder = new OkHttpClient.Builder();
-        if (ConfigurationService.INSTANCE.isDev()) {
-            configureInsecureSsl(builder);
-        }
+        configureInsecureSsl(builder);
         return builder.build();
     }
 
