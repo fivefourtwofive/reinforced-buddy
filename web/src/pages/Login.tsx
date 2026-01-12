@@ -67,7 +67,9 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
       <Seo 
         title="Login | Port Buddy"
-        description="Login to your Port Buddy account."
+        description="Login to your Port Buddy account to manage your tunnels and domains."
+        canonical="https://portbuddy.dev/login"
+        url="https://portbuddy.dev/login"
       />
       {/* Background gradients */}
       <div className="absolute inset-0 bg-slate-950"></div>

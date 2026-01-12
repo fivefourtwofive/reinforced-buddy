@@ -11,8 +11,33 @@
     <changefreq>monthly</changefreq>
   </url>
   <url>
+    <loc>https://portbuddy.dev/docs</loc>
+    <priority>0.8</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+  <url>
     <loc>https://portbuddy.dev/login</loc>
     <priority>0.5</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+  <url>
+    <loc>https://portbuddy.dev/register</loc>
+    <priority>0.5</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+  <url>
+    <loc>https://portbuddy.dev/forgot-password</loc>
+    <priority>0.1</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+  <url>
+    <loc>https://portbuddy.dev/terms</loc>
+    <priority>0.3</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+  <url>
+    <loc>https://portbuddy.dev/privacy</loc>
+    <priority>0.3</priority>
     <changefreq>monthly</changefreq>
   </url>
 </urlset>

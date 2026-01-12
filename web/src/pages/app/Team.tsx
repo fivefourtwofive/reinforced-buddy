@@ -238,7 +238,7 @@ export default function Team() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       {m.avatarUrl ? (
-                        <img src={m.avatarUrl} alt="" className="w-8 h-8 rounded-full" />
+                        <img src={m.avatarUrl} alt={`${m.firstName || m.email}'s avatar`} className="w-8 h-8 rounded-full" />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-400">
                           {m.firstName?.[0] || m.email[0].toUpperCase()}

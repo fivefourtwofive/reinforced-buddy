@@ -8,6 +8,9 @@ interface SeoProps {
   type?: string;
   name?: string;
   keywords?: string;
+  schema?: object;
+  image?: string;
+  url?: string;
 }
 
 export default function Seo({ 
@@ -16,7 +19,10 @@ export default function Seo({
   canonical, 
   type = 'website',
   name = 'Port Buddy',
-  keywords 
+  keywords,
+  schema,
+  image,
+  url
 }: SeoProps) {
   return (
     <Helmet>
@@ -30,13 +36,22 @@ export default function Seo({
       <meta property="og:type" content={type} />
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
-      {/* Ensure og:image is handled if needed, for now reusing static one or add prop later */}
+      {url && <meta property="og:url" content={url} />}
+      {image && <meta property="og:image" content={image} />}
       
       {/* Twitter tags */}
       <meta name="twitter:creator" content={name} />
       <meta name="twitter:card" content={type === 'article' ? 'summary_large_image' : 'summary'} />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
+      {image && <meta name="twitter:image" content={image} />}
+
+      {/* Structured Data */}
+      {schema && (
+        <script type="application/ld+json">
+          {JSON.stringify(schema)}
+        </script>
+      )}
     </Helmet>
   );
 }

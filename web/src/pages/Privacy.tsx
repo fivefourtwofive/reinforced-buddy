@@ -10,6 +10,8 @@ export default function Privacy() {
       <Seo 
         title="Privacy Policy - Port Buddy"
         description="Learn about how Port Buddy collects, uses, and protects your personal data."
+        canonical="https://portbuddy.dev/privacy"
+        url="https://portbuddy.dev/privacy"
       />
       <div className="flex-1 relative pt-32 pb-20 px-4">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/10 via-slate-900/0 to-slate-900/0 pointer-events-none" />

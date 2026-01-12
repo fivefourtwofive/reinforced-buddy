@@ -55,7 +55,9 @@ export default function Register() {
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
       <Seo 
         title="Register | Port Buddy"
-        description="Create your Port Buddy account."
+        description="Create your Port Buddy account and start sharing your local ports securely."
+        canonical="https://portbuddy.dev/register"
+        url="https://portbuddy.dev/register"
       />
       {/* Background gradients */}
       <div className="absolute inset-0 bg-slate-950"></div>
