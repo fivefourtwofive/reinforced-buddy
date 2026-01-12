@@ -150,7 +150,6 @@
                                 <buildArg>--enable-http</buildArg>
                                 <buildArg>--enable-https</buildArg>
                                 <buildArg>--gc=serial</buildArg>
-                                <buildArg>--exact-reachability-metadata</buildArg>
                                 <buildArg>-H:+UnlockExperimentalVMOptions</buildArg>
                                 <buildArg>-H:-StackTrace</buildArg>
                                 <buildArg>--initialize-at-build-time=org.slf4j,ch.qos.logback,tech.amak.portbuddy.common</buildArg>

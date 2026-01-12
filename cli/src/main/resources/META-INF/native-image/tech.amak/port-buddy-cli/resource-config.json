@@ -5,6 +5,15 @@
     },
     {
       "pattern": "application-dev\\.yml"
+    },
+    {
+      "pattern": "META-INF/services/ch.qos.logback.classic.spi.Configurator"
+    },
+    {
+      "pattern": "logback\\.xml"
+    },
+    {
+      "pattern": "logback-test\\.xml"
     }
   ],
   "bundles": []
