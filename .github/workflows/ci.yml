@@ -32,7 +32,7 @@ jobs:
       - name: Build with Maven
         run: ./mvnw clean package
 
-  deploy-backend:
+  build-backend:
     name: Build and Push Docker Images to YC CR
     needs: build
     if: github.ref == 'refs/heads/master'
@@ -116,7 +116,7 @@ jobs:
           push: true
           tags: cr.yandex/${{ vars.CR_REGISTRY }}/port-buddy-ssl-service:latest
 
-  deploy-cli:
+  build-portbuddy-docker:
     name: Build and Push CLI Images
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
@@ -168,7 +168,7 @@ jobs:
             portbuddy/portbuddy:${{ steps.extract_version.outputs.VERSION }}
             portbuddy/portbuddy:latest
 
-  build-native-cli:
+  build-portbuddy-native:
     name: Build Native CLI (${{ matrix.os }})
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
@@ -179,19 +179,19 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            asset_name: port-buddy-linux-x64
+            asset_name: portbuddy-linux-x64
             executable_path: cli/target/portbuddy
           - os: ubuntu-24.04-arm
-            asset_name: port-buddy-linux-arm64
+            asset_name: portbuddy-linux-arm64
             executable_path: cli/target/portbuddy
           - os: macos-15-intel
-            asset_name: port-buddy-macos-x64
+            asset_name: portbuddy-macos-x64
             executable_path: cli/target/portbuddy
           - os: macos-latest
-            asset_name: port-buddy-macos-arm64
+            asset_name: portbuddy-macos-arm64
             executable_path: cli/target/portbuddy
           - os: windows-latest
-            asset_name: port-buddy-windows-x64.exe
+            asset_name: portbuddy-windows-x64.exe
             executable_path: cli/target/portbuddy.exe
     runs-on: ${{ matrix.os }}
     steps:
@@ -223,9 +223,12 @@ jobs:
         run: ./mvnw clean package -pl cli -am -DskipTests -Pnative
 
       - name: Prepare Artifact
+        id: prepare_artifact
         shell: bash
         run: |
           cp ${{ matrix.executable_path }} ${{ matrix.asset_name }}
+          SHA=$(shasum -a 256 ${{ matrix.asset_name }} | awk '{print $1}')
+          echo "sha256=$SHA" >> $GITHUB_OUTPUT
 
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -237,3 +240,45 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-homebrew:
+    name: Update Homebrew Tap
+    needs: build-portbuddy-native
+    if: startsWith(github.ref, 'refs/tags/v22')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Homebrew Tap
+        uses: actions/checkout@v4
+        with:
+          repository: amak-tech/homebrew-portbuddy # REPLACE with your actual tap repository
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }} # Needs a PAT with 'repo' scope
+
+      - name: Extract version
+        id: extract_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Update Formula
+        run: |
+          # Use values from build-native-cli outputs
+          # Note: Accessing matrix outputs by job ID is complex. 
+          # An easier way is to download them from the release if they are already there.
+          # Or since we are in the same workflow, we can use 'gh release download'
+          
+          gh release download v${{ steps.extract_version.outputs.VERSION }} -p "portbuddy-macos-*" --repo ${{ github.repository }}
+          
+          ARM_SHA=$(shasum -a 256 portbuddy-macos-arm64 | awk '{print $1}')
+          X64_SHA=$(shasum -a 256 portbuddy-macos-x64 | awk '{print $1}')
+          
+          sed -i "s/version \".*\"/version \"${{ steps.extract_version.outputs.VERSION }}\"/" Formula/portbuddy.rb
+          sed -i "/portbuddy-macos-arm64\"/{n;s/sha256 \".*\"/sha256 \"$ARM_SHA\"/;}" Formula/portbuddy.rb
+          sed -i "/portbuddy-macos-x64\"/{n;s/sha256 \".*\"/sha256 \"$X64_SHA\"/;}" Formula/portbuddy.rb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit and Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/portbuddy.rb
+          git commit -m "Update portbuddy to v${{ steps.extract_version.outputs.VERSION }}"
+          git push
