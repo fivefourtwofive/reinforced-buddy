@@ -8,14 +8,14 @@ import {
 import Seo from '../components/Seo'
 
 export default function Installation() {
-  const [activeTab, setActiveTab] = useState<'macos' | 'linux' | 'windows'>('macos')
+  const [activeTab, setActiveTab] = useState<'macos' | 'linux' | 'windows' | 'docker'>('macos')
 
   return (
     <div className="min-h-screen flex flex-col">
       <Seo 
-        title="Install Port Buddy - Windows, macOS, Linux | Port Buddy CLI"
-        description="Install Port Buddy CLI on your machine. Supports Homebrew (macOS), Scoop (Windows), and Shell script (Linux). Get started with secure localhost tunneling."
-        keywords="install port buddy, download port buddy, port buddy cli, homebrew port buddy, scoop port buddy, linux port forwarding"
+        title="Install Port Buddy - Windows, macOS, Linux, Docker | Port Buddy CLI"
+        description="Install Port Buddy CLI on your machine. Supports Homebrew (macOS), Scoop (Windows), Shell script (Linux), and Docker. Get started with secure localhost tunneling."
+        keywords="install port buddy, download port buddy, port buddy cli, homebrew port buddy, scoop port buddy, linux port forwarding, docker port buddy"
         canonical="https://portbuddy.dev/install"
         url="https://portbuddy.dev/install"
       />
@@ -51,6 +51,11 @@ export default function Installation() {
                 isActive={activeTab === 'windows'} 
                 onClick={() => setActiveTab('windows')} 
                 label="Windows"
+              />
+              <TabButton 
+                isActive={activeTab === 'docker'} 
+                onClick={() => setActiveTab('docker')} 
+                label="Docker"
               />
             </div>
 
@@ -103,6 +108,23 @@ export default function Installation() {
                     description="Link the CLI to your account."
                   >
                     <CodeBlock code="port-buddy init {API_TOKEN}" />
+                  </Step>
+                </div>
+              )}
+
+              {activeTab === 'docker' && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <Step 
+                    title="Pull Docker Image"
+                    description="Get the official Port Buddy image from Docker Hub."
+                  >
+                    <CodeBlock code="docker pull portbuddy/portbuddy" />
+                  </Step>
+                  <Step 
+                    title="Run Port Buddy"
+                    description="Expose your local service using Docker."
+                  >
+                    <CodeBlock code="docker run --net=host portbuddy/portbuddy 3000" />
                   </Step>
                 </div>
               )}
