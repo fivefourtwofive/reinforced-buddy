@@ -271,7 +271,7 @@ jobs:
           # An easier way is to download them from the release if they are already there.
           # Or since we are in the same workflow, we can use 'gh release download'
           
-          gh release download v${{ steps.extract_version.outputs.VERSION }} -p "portbuddy-macos-*" --repo ${{ github.repository }}
+          gh release download ${{ steps.extract_version.outputs.VERSION }} -p "portbuddy-macos-*" --repo ${{ github.repository }}
           
           if command -v shasum &> /dev/null; then
             ARM_SHA=$(shasum -a 256 portbuddy-macos-arm64 | awk '{print $1}')
