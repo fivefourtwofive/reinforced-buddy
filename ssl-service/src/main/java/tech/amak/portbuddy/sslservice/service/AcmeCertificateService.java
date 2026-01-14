@@ -33,7 +33,6 @@ import org.shredzone.acme4j.Session;
 import org.shredzone.acme4j.Status;
 import org.shredzone.acme4j.challenge.Dns01Challenge;
 import org.shredzone.acme4j.challenge.Http01Challenge;
-import org.shredzone.acme4j.exception.AcmeException;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Async;
@@ -172,10 +171,8 @@ public class AcmeCertificateService {
         final KeyPair accountKeyPair = acmeAccountService.loadAccountKeyPair();
         updateJobMessage(job, "Account key loaded");
 
-        final Account account = retryExecutor.callWithRetry("acme.login", () -> {
-            final var acc = acmeClientService.loginOrRegister(session, accountKeyPair);
-            return acc;
-        });
+        final Account account = retryExecutor.callWithRetry("acme.login", () ->
+            acmeClientService.loginOrRegister(session, accountKeyPair));
         updateJobMessage(job, "Logged into ACME account");
 
         // 2) Create a new order for the domain
@@ -494,7 +491,7 @@ public class AcmeCertificateService {
     }
 
     private void pollAuthorizationValidWithRetry(final Authorization auth, final int maxSeconds, final long sleepMillis)
-        throws InterruptedException, AcmeException {
+        throws InterruptedException {
         final long deadline = System.currentTimeMillis() + maxSeconds * 1000L;
         while (System.currentTimeMillis() < deadline) {
             try {
@@ -519,7 +516,7 @@ public class AcmeCertificateService {
     }
 
     private void pollOrderValidWithRetry(final Order order, final int maxSeconds, final long sleepMillis)
-        throws InterruptedException, AcmeException {
+        throws InterruptedException {
         final long deadline = System.currentTimeMillis() + maxSeconds * 1000L;
         while (System.currentTimeMillis() < deadline) {
             try {
@@ -544,7 +541,7 @@ public class AcmeCertificateService {
 
     private byte[] buildCsrDer(final java.util.List<String> domains, final KeyPair keyPair)
         throws OperatorCreationException, java.io.IOException {
-        final var primary = domains.get(0);
+        final var primary = domains.getFirst();
         final X500Name subject = new X500Name("CN=" + primary);
         final PKCS10CertificationRequestBuilder p10Builder =
             new JcaPKCS10CertificationRequestBuilder(subject, keyPair.getPublic());
