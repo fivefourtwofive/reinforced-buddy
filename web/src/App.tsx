@@ -69,10 +69,21 @@ export default function App() {
   
   useEffect(() => {
     setLoadingCallbacks(startLoading, stopLoading)
-  }, [startLoading, stopLoading])
+    // Signal to pre-renderer that the page is ready
+    const timer = setTimeout(() => {
+      document.dispatchEvent(new Event('render-event'))
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [startLoading, stopLoading, location.pathname])
 
   const isApp = location.pathname.startsWith('/app')
   const showHeader = !isApp && !['/login', '/register', '/forgot-password', '/reset-password'].includes(location.pathname)
+
+  // const [currentYear, setCurrentYear] = useState<number | null>(null);
+  //
+  // useEffect(() => {
+  //   setCurrentYear(new Date().getFullYear());
+  // }, []);
 
   return (
     <div className="min-h-full w-full flex flex-col bg-slate-950 text-slate-200">
@@ -168,6 +179,7 @@ export default function App() {
       <main className={`flex-1 w-full ${showHeader ? 'pt-[73px]' : ''}`}>
         <Routes>
           <Route path="/" element={<Landing/>} />
+          <Route path="/index" element={<Navigate to="/" replace />} />
           <Route path="/install" element={<Installation/>} />
           <Route path="/docs" element={<Docs/>} />
           <Route path="/login" element={<Login/>} />
@@ -210,7 +222,7 @@ export default function App() {
       <footer className="border-t border-slate-800 py-12 bg-slate-900 mt-auto">
         <div className="container flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2 text-slate-400 text-sm">
-             <span>© {new Date().getFullYear()} Port Buddy. All rights reserved.</span>
+             <span>© 2026 Port Buddy. All rights reserved.</span>
           </div>
           <div className="flex flex-wrap justify-center gap-x-8 gap-y-4 text-sm font-medium">
             <a 

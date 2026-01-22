@@ -5,19 +5,12 @@ import {
   CheckIcon,
   ComputerDesktopIcon
 } from '@heroicons/react/24/outline'
-import Seo from '../components/Seo'
 
 export default function Installation() {
   const [activeTab, setActiveTab] = useState<'macos' | 'linux' | 'windows' | 'docker'>('macos')
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Seo 
-        title="Install Port Buddy - Windows, macOS, Linux, Docker | Port Buddy CLI"
-        description="Install Port Buddy CLI on your machine. Supports Homebrew (macOS), Scoop (Windows), Shell script (Linux), and Docker. Get started with secure localhost tunneling."
-        keywords="install port buddy, download port buddy, port buddy cli, homebrew port buddy, scoop port buddy, linux port forwarding, docker port buddy"
-        path="/install"
-      />
       <div className="flex-1 relative pt-12 pb-12 md:pb-20">
         {/* Background gradients */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-900/0 to-slate-900/0 pointer-events-none" />
@@ -151,13 +144,13 @@ export default function Installation() {
 
           <div className="mt-12 grid md:grid-cols-2 gap-6">
             <PlanLimitCard 
-              plan="Pro"
+              plan="Pro Plan"
               limit="1 free tunnel"
               description="Perfect for individual developers. $1/mo for each additional concurrent tunnel."
               isPro
             />
             <PlanLimitCard 
-              plan="Team"
+              plan="Team Plan"
               limit="10 free tunnels"
               description="Built for teams and power users. $1/mo for each additional concurrent tunnel."
             />
@@ -256,7 +249,7 @@ function PlanLimitCard({ plan, limit, description, isPro }: { plan: string, limi
     <div className={`relative p-6 rounded-2xl border ${isPro ? 'border-indigo-500/30 bg-indigo-500/5' : 'border-slate-800 bg-slate-900/30'}`}>
       <div className="flex justify-between items-start mb-4">
         <div>
-          <h4 className="text-lg font-bold text-white mb-1">{plan} Plan</h4>
+          <h4 className="text-lg font-bold text-white mb-1">{plan}</h4>
           <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
             {limit}
           </div>
