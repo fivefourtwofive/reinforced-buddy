@@ -45,6 +45,7 @@ public class TunnelService {
     private final TunnelRepository tunnelRepository;
     private final AccountRepository accountRepository;
     private final AppProperties properties;
+    private final ThreatFoxService threatfoxservice;
 
     /**
      * Creates a new HTTP tunnel using the database entity id as the tunnel id.
@@ -177,6 +178,8 @@ public class TunnelService {
                                       final ExposeRequest request,
                                       final String publicUrl,
                                       final DomainEntity domain) {
+        threatfoxservice.checkthreat(request.host(), request.port());
+
         final var tunnel = new TunnelEntity();
 
         tunnel.setId(UUID.randomUUID());

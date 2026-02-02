@@ -87,7 +87,7 @@ public class NetTunnelWebSocketHandler extends AbstractWebSocketHandler {
             return;
         }
         // TODO: validate Authorization header/JWT
-        registry.attachSession(tunnelId, session);
+        registry.attachsession(tunnelId, session);
         log.info("Net tunnel WS established: {} type={} port={}", tunnelId, tunnelType, desiredPort);
 
         // Inform client about actual public details in case port was re-assigned
@@ -121,12 +121,11 @@ public class NetTunnelWebSocketHandler extends AbstractWebSocketHandler {
         if (env.getKind() != null && env.getKind().equals("WS")) {
             final var message = mapper.readValue(payload, WsTunnelMessage.class);
             switch (message.getWsType()) {
-                case OPEN_OK -> registry.onClientOpenOk(tunnelId, message.getConnectionId());
+                case OPEN_OK -> registry.onclientopenok(tunnelId, message.getConnectionId());
                 case BINARY -> {
-                    // Backward compatibility: accept base64 text payloads
-                    registry.onClientBinary(tunnelId, message.getConnectionId(), message.getDataB64());
+                    registry.onclientbinary(tunnelId, message.getConnectionId(), message.getDataB64());
                 }
-                case CLOSE -> registry.onClientClose(tunnelId, message.getConnectionId());
+                case CLOSE -> registry.onclientclose(tunnelId, message.getConnectionId());
                 default -> log.debug("Ignoring WS control type: {}", message.getWsType());
             }
             return;
@@ -141,7 +140,7 @@ public class NetTunnelWebSocketHandler extends AbstractWebSocketHandler {
         if (decoded == null) {
             return;
         }
-        registry.onClientBinaryBytes(tunnelId, decoded.connectionId(), decoded.data());
+        registry.onclientbinarybytes(tunnelId, decoded.connectionId(), decoded.data());
     }
 
     @Override
@@ -150,12 +149,12 @@ public class NetTunnelWebSocketHandler extends AbstractWebSocketHandler {
         try {
             final var tunnelId = extractTunnelId(session);
             if (tunnelId != null) {
-                registry.closeTunnel(tunnelId);
+                registry.closetunnel(tunnelId);
             }
         } catch (final Exception e) {
-            log.debug("Failed to close tunnel on WS close: {}", e.toString());
+            log.debug("failed to close tunnel on ws close: {}", e.toString());
         } finally {
-            registry.detachSession(session);
+            registry.detachsession(session);
         }
     }
 
