@@ -34,7 +34,7 @@ import tech.amak.portbuddy.server.db.entity.TunnelEntity;
 import tech.amak.portbuddy.server.db.entity.TunnelStatus;
 import tech.amak.portbuddy.server.db.repo.AccountRepository;
 import tech.amak.portbuddy.server.db.repo.TunnelRepository;
-import tech.amak.portbuddy.server.service.threatfox.dto.ThreatFoxService;
+import tech.amak.portbuddy.server.service.threatfox.ThreatFoxService;
 
 @Service
 @RequiredArgsConstructor

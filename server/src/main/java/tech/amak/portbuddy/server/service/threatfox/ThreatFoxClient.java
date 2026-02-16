@@ -12,7 +12,7 @@
  * limitations under the License.
  */
 
-package tech.amak.portbuddy.server.service.threatfox.dto;
+package tech.amak.portbuddy.server.service.threatfox;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cloud.openfeign.FeignClient;

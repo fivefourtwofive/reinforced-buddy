@@ -1,4 +1,4 @@
-package tech.amak.portbuddy.server.service.threatfox.dto;
+package tech.amak.portbuddy.server.service.threatfox;
 
 import java.util.HashSet;
 import java.util.Objects;

@@ -12,7 +12,7 @@
  * limitations under the License.
  */
 
-package tech.amak.portbuddy.server.service.threatfox.dto;
+package tech.amak.portbuddy.server.service.threatfox;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;

@@ -12,16 +12,10 @@
  * limitations under the License.
  */
 
-package tech.amak.portbuddy.server.service.threatfox.dto;
+package tech.amak.portbuddy.server.service.threatfox;
 
-import java.util.List;
-
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-public record ThreatFoxResponse(
-    @JsonProperty("query_status") String queryStatus,
-    @JsonProperty("data") List<ThreatFoxIoc> data
+public record ThreatFoxRequest(
+    String query,
+    Integer days
 ) {
 }
