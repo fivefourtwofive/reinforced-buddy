@@ -19,9 +19,8 @@ import tech.amak.portbuddy.server.security.ThreatBlockedException;
 @ConditionalOnProperty(name = "threatfox.enabled", havingValue = "true")
 public class ThreatFoxService {
 
-    private static final String IOC_TYPE_IP_PORT = "ip:port";
-    private static final String IOC_TYPE_DOMAIN = "domain";
-
+    private static final String IOC_TYPE_URL = "url";
+    private static final Set<String> IOC_TYPES = Set.of("domain", "ip:port", IOC_TYPE_URL);
     private static final ThreatFoxRequest FETCH_IOC_REQUEST = new ThreatFoxRequest("get_iocs", 1);
 
     private final ThreatFoxClient client;
@@ -48,7 +47,6 @@ public class ThreatFoxService {
 
         cache = response.data().stream().parallel()
             .filter(ioc -> isRelevantType(ioc.iocType()))
-            .map(ThreatFoxIoc::ioc)
             .map(this::normalize)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
@@ -57,7 +55,21 @@ public class ThreatFoxService {
     }
 
     private boolean isRelevantType(final String type) {
-        return IOC_TYPE_IP_PORT.equalsIgnoreCase(type) || IOC_TYPE_DOMAIN.equalsIgnoreCase(type);
+        return IOC_TYPES.contains(type);
+    }
+
+    private String normalize(final ThreatFoxIoc ioc) {
+        final var iocValue = Objects.equals(ioc.iocType(), IOC_TYPE_URL)
+            ? extractDomain(ioc.ioc())
+            : ioc.ioc();
+        return normalize(iocValue);
+    }
+
+    private String extractDomain(final String url) {
+        final var doubleSlashIndex = url.indexOf("//");
+        final var start = doubleSlashIndex == -1 ? 0 : doubleSlashIndex + 2;
+        final var lastSlashIndex = url.indexOf("/", start);
+        return url.substring(start, lastSlashIndex == -1 ? url.length() : lastSlashIndex);
     }
 
     private String normalize(final String ioc) {

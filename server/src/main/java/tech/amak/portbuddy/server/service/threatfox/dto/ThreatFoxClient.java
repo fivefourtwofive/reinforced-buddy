@@ -32,7 +32,7 @@ import tech.amak.portbuddy.server.config.ThreatFoxProperties;
 @ConditionalOnProperty(value = "threatfox.enabled", havingValue = "true")
 public interface ThreatFoxClient {
 
-    @PostMapping("/api/v1")
+    @PostMapping("/api/v1/")
     ThreatFoxResponse fetchIoc(@RequestBody final ThreatFoxRequest request);
 
     @RequiredArgsConstructor
